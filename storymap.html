@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Map Editor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f7f5;
+      --surface: #ffffff;
+      --border: #e0ddd8;
+      --text: #1a1a18;
+      --text-muted: #888480;
+      --activity-bg: #1a1a18;
+      --activity-text: #ffffff;
+      --task-bg: #e8e4de;
+      --task-text: #1a1a18;
+      --story-bg: #ffffff;
+      --story-text: #1a1a18;
+      --story-border: #d0ccc6;
+      --accent: #4a6fa5;
+      --error: #c0392b;
+      --error-bg: #fdf0ee;
+      --font-mono: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+      --font-ui: system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-title {
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      margin-right: auto;
+    }
+    .toolbar-title span { color: var(--text-muted); font-weight: 400; }
+
+    button {
+      font-family: var(--font-ui);
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+      white-space: nowrap;
+      line-height: 1;
+    }
+    button:hover { background: var(--bg); border-color: #c8c4be; }
+    button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    button.primary:hover { background: #3d5f8f; border-color: #3d5f8f; }
+
+    /* ── Layout ── */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Editor pane ── */
+    .editor-pane {
+      display: flex;
+      flex-direction: column;
+      width: 320px;
+      min-width: 160px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .pane-header {
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #editor {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 14px;
+      border: none;
+      outline: none;
+      resize: none;
+      background: var(--surface);
+      color: var(--text);
+      overflow-y: auto;
+      tab-size: 2;
+    }
+    #editor::selection { background: #c8d8f0; }
+
+    .error-panel {
+      border-top: 1px solid var(--error);
+      background: var(--error-bg);
+      padding: 8px 14px;
+      font-size: 11px;
+      color: var(--error);
+      max-height: 100px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .error-panel.hidden { display: none; }
+    .error-line { padding: 1px 0; font-family: var(--font-mono); }
+
+    .format-hint {
+      padding: 8px 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      line-height: 1.9;
+      flex-shrink: 0;
+    }
+    .format-hint code {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: var(--bg);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* ── Resize handle ── */
+    .resize-handle {
+      width: 4px;
+      cursor: col-resize;
+      background: transparent;
+      flex-shrink: 0;
+    }
+    .resize-handle:hover, .resize-handle.dragging { background: var(--accent); }
+
+    /* ── Preview pane ── */
+    .preview-pane {
+      flex: 1;
+      overflow: auto;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+    .preview-pane .pane-header {
+      flex-shrink: 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .map-scroll { flex: 1; overflow: auto; padding: 24px; }
+
+    /* ── Story Map ── */
+    .story-map { display: inline-block; min-width: max-content; }
+
+    .map-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    /* ── Backbone ── */
+    .backbone { display: flex; gap: 4px; margin-bottom: 4px; align-items: flex-end; }
+
+    .activity-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+
+    .activity-header {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+    }
+
+    .activity-card {
+      background: var(--activity-bg);
+      color: var(--activity-text);
+      padding: 8px 12px;
+      border-radius: 8px 8px 0 0;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.01em;
+      text-align: center;
+      flex: 1;
+      cursor: text;
+      outline: none;
+      min-width: 0;
+    }
+    .activity-card:focus {
+      background: #333;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    /* add-activity button at end of backbone */
+    .add-activity-btn {
+      align-self: flex-end;
+      margin-left: 4px;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 8px;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      border-style: dashed;
+      flex-shrink: 0;
+    }
+    .add-activity-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+    .tasks-row { display: flex; gap: 4px; }
+
+    /* ── Task ── */
+    .task-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 160px;
+      flex-shrink: 0;
+    }
+
+    .task-header {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+    }
+
+    .task-card {
+      background: var(--task-bg);
+      color: var(--task-text);
+      padding: 7px 10px;
+      font-weight: 600;
+      font-size: 12px;
+      text-align: center;
+      min-height: 34px;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: text;
+      outline: none;
+      line-height: 1.3;
+    }
+    .task-card:focus {
+      background: #d8d4ce;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    /* ── Icon buttons (remove, add-task) ── */
+    .icon-btn {
+      background: transparent;
+      border: none;
+      padding: 0 4px;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--text-muted);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.12s, color 0.12s;
+    }
+    .icon-btn:hover { color: var(--error); opacity: 1 !important; background: var(--error-bg); }
+
+    .activity-group:hover > .activity-header .icon-btn,
+    .task-col:hover > .task-header .icon-btn { opacity: 0.5; }
+
+    .add-task-btn {
+      width: 160px;
+      padding: 5px;
+      border-style: dashed;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .add-task-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* ── Stories grid ── */
+    .stories-grid {
+      display: grid;
+      gap: 4px;
+    }
+
+    .story-cell { width: 160px; position: relative; }
+
+    .story-card {
+      background: var(--story-bg);
+      color: var(--story-text);
+      border: 1px solid var(--story-border);
+      border-radius: 6px;
+      padding: 7px 28px 7px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      min-height: 38px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      cursor: text;
+      outline: none;
+      width: 100%;
+      word-break: break-word;
+    }
+    .story-card:focus {
+      box-shadow: 0 0 0 2px var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* drag state */
+    .story-card[draggable="true"] { cursor: grab; }
+    .story-card.dragging { opacity: 0.35; }
+    .story-cell.drag-over .story-card,
+    .story-cell.drag-over-empty { outline: 2px dashed var(--accent); border-radius: 6px; }
+
+    .task-col.drag-over-task .task-card { box-shadow: inset 0 0 0 2px var(--accent); }
+
+    .remove-story-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      font-size: 13px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.12s;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .story-cell:hover .remove-story-btn { opacity: 0.5; }
+    .remove-story-btn:hover { opacity: 1 !important; color: var(--error); background: var(--error-bg); }
+
+    .add-story-btn {
+      width: 160px;
+      padding: 5px;
+      border-style: dashed;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      border-radius: 4px;
+      display: block;
+    }
+    .add-story-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* ── Release bands ── */
+    .release-band {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 6px 0 2px;
+      border-radius: 6px;
+      transition: background 0.1s;
+    }
+    .release-band.rel-drag-over {
+      background: rgba(74, 111, 165, 0.12);
+      outline: 2px dashed var(--accent);
+    }
+    .release-band.rel-dragging { opacity: 0.35; }
+
+    /* Drop zones between tiers — invisible until a release drag is active */
+    .rel-drop-zone {
+      height: 6px;
+      border-radius: 3px;
+      margin: 2px 0;
+      transition: height 0.1s, background 0.1s;
+      cursor: default;
+    }
+    body.rel-dragging-active .rel-drop-zone {
+      height: 20px;
+      background: rgba(74, 111, 165, 0.07);
+      border: 2px dashed transparent;
+    }
+    body.rel-dragging-active .rel-drop-zone:hover,
+    .rel-drop-zone.rel-drop-zone-over {
+      background: rgba(74, 111, 165, 0.18) !important;
+      border-color: var(--accent) !important;
+    }
+
+    .release-grip {
+      cursor: grab;
+      color: var(--text-muted);
+      font-size: 14px;
+      padding: 2px 4px;
+      flex-shrink: 0;
+      user-select: none;
+      line-height: 1;
+      border-radius: 3px;
+      touch-action: none;
+    }
+    .release-grip:hover { color: var(--text); background: var(--border); }
+
+    /* Ghost label shown while dragging a release */
+    #release-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      opacity: 0.9;
+      display: none;
+    }
+
+    .release-label-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .release-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: white;
+      cursor: text;
+      outline: none;
+      min-width: 30px;
+      display: inline-block;
+    }
+    .release-label:focus { box-shadow: 0 0 0 2px rgba(255,255,255,0.5), 0 0 0 4px var(--accent); }
+    .release-line { flex: 1; height: 2px; border-radius: 1px; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      gap: 8px;
+      text-align: center;
+      padding: 40px;
+    }
+    .empty-state p { font-size: 14px; }
+    .empty-state code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="release-ghost"></div>
+<div class="toolbar">
+  <div class="toolbar-title">Story Map Editor <span>.storymap</span></div>
+  <button id="btn-example">Load Example</button>
+  <button id="btn-export-svg" class="primary">Export SVG</button>
+  <button id="btn-export-html" class="primary">Export HTML</button>
+</div>
+
+<div class="main">
+  <div class="editor-pane" id="editor-pane">
+    <div class="pane-header">Source</div>
+    <textarea id="editor" spellcheck="false" placeholder="Start typing..."></textarea>
+    <div class="error-panel hidden" id="error-panel"></div>
+    <div class="format-hint">
+      <code>title:</code> &nbsp;
+      <code>activity:</code> &nbsp;
+      <code>  task:</code><br>
+      <code>    story:</code> &nbsp;
+      <code>    --- Release name</code>
+    </div>
+  </div>
+
+  <div class="resize-handle" id="resize-handle"></div>
+
+  <div class="preview-pane">
+    <div class="pane-header">Map</div>
+    <div class="map-scroll" id="map-scroll">
+      <div id="map-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// RELEASE COLOURS
+// ─────────────────────────────────────────────
+
+const RELEASE_PALETTE = [
+  '#d94f3d','#c47c1a','#2e7d5e','#4a6fa5','#7b52a6',
+  '#b5551e','#1a7a7a','#6b7d2e','#8c4a6e','#3d6b3d',
+];
+const releaseColor = i => RELEASE_PALETTE[i % RELEASE_PALETTE.length];
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+
+// Canonical in-memory model. All edits (text or visual) update this then re-render.
+// { title: string|null, activities: Activity[] }
+// Activity: { name, tasks: Task[] }
+// Task: { name, items: Item[] }
+// Item: { type:'story', text } | { type:'release', name }
+
+let model = { title: null, activities: [] };
+let suppressTextSync = false; // prevent echo loop
+
+// ─────────────────────────────────────────────
+// PARSER  (text → model)
+// ─────────────────────────────────────────────
+
+function parse(text) {
+  const lines = text.split('\n');
+  const errors = [];
+  let title = null;
+  const activities = [];
+  let curAct = null, curTask = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i], lineNo = i + 1;
+    if (raw.trim() === '' || raw.trim().startsWith('#')) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const content = raw.trim();
+
+    if (/^title\s*:/i.test(content)) {
+      if (indent !== 0) { errors.push({ line: lineNo, message: '`title` must not be indented' }); continue; }
+      title = content.replace(/^title\s*:\s*/i, '').trim();
+      continue;
+    }
+    if (/^activity\s*:/i.test(content)) {
+      if (indent !== 0) { errors.push({ line: lineNo, message: '`activity` must not be indented' }); continue; }
+      const name = content.replace(/^activity\s*:\s*/i, '').trim();
+      if (!name) errors.push({ line: lineNo, message: '`activity` has no name' });
+      curAct = { name: name || '(unnamed)', tasks: [] };
+      curTask = null;
+      activities.push(curAct);
+      continue;
+    }
+    if (/^task\s*:/i.test(content)) {
+      if (!curAct) { errors.push({ line: lineNo, message: '`task` must be inside an `activity`' }); continue; }
+      if (indent === 0) { errors.push({ line: lineNo, message: '`task` must be indented' }); continue; }
+      const name = content.replace(/^task\s*:\s*/i, '').trim();
+      curTask = { name: name || '(unnamed)', items: [] };
+      curAct.tasks.push(curTask);
+      continue;
+    }
+    if (/^story\s*:/i.test(content)) {
+      if (!curTask) { errors.push({ line: lineNo, message: '`story` must be inside a `task`' }); continue; }
+      const text2 = content.replace(/^story\s*:\s*/i, '').trim();
+      curTask.items.push({ type: 'story', text: text2 || '(empty)' });
+      continue;
+    }
+    if (/^---/.test(content)) {
+      if (!curTask) { errors.push({ line: lineNo, message: 'Release separator must be inside a `task`' }); continue; }
+      const name = content.replace(/^-+\s*/, '').trim() || null;
+      curTask.items.push({ type: 'release', name });
+      continue;
+    }
+    errors.push({ line: lineNo, message: `Unrecognised: "${content.split(/[\s:]/)[0]}"` });
+  }
+
+  return { title, activities, errors };
+}
+
+// ─────────────────────────────────────────────
+// SERIALIZER  (model → text)
+// ─────────────────────────────────────────────
+
+function serialize(m) {
+  const lines = [];
+  if (m.title) lines.push(`title: ${m.title}`, '');
+  for (const act of m.activities) {
+    lines.push(`activity: ${act.name}`);
+    for (const task of act.tasks) {
+      lines.push(`  task: ${task.name}`);
+      for (const item of task.items) {
+        if (item.type === 'story') lines.push(`    story: ${item.text}`);
+        else lines.push(`    --- ${item.name || ''}`);
+      }
+    }
+    lines.push('');
+  }
+  return lines.join('\n').trimEnd() + '\n';
+}
+
+// ─────────────────────────────────────────────
+// LAYOUT HELPERS
+// ─────────────────────────────────────────────
+
+function allTasks(activities) {
+  const tasks = [];
+  for (const act of activities)
+    for (const t of (act.tasks.length ? act.tasks : [{ name: '', items: [] }])) tasks.push(t);
+  return tasks;
+}
+
+function computeReleases(activities) {
+  const releases = [], idx = new Map();
+  for (const task of allTasks(activities)) {
+    let n = 0;
+    for (const item of task.items) {
+      if (item.type !== 'release') continue;
+      const name = item.name || `Release ${n + 1}`;
+      if (!idx.has(name)) { idx.set(name, releases.length); releases.push(name); }
+      n++;
+    }
+  }
+  return { releases, releaseIdx: idx };
+}
+
+function splitTiers(task) {
+  const tiers = [[]];
+  for (const item of task.items) {
+    if (item.type === 'release') tiers.push([]);
+    else tiers[tiers.length - 1].push(item.text);
+  }
+  return tiers;
+}
+
+// ─────────────────────────────────────────────
+// VISUAL RENDER
+// ─────────────────────────────────────────────
+
+// Drag state
+let drag = null;
+// { type:'story'|'task', actIdx, taskIdx, itemIdx }
+
+function renderMap(m) {
+  const container = document.getElementById('map-container');
+
+  if (m.activities.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+      <p>Nothing here yet.</p>
+      <p>Type in the editor or click <strong>Load Example</strong>.</p>
+    </div>`;
+    return;
+  }
+
+  const { releases } = computeReleases(m.activities);
+  const tasks = allTasks(m.activities);
+  const numCols = tasks.length;
+  const numTiers = releases.length + 1;
+  const taskTiers = tasks.map(t => splitTiers(t));
+  const tierMax = [];
+  for (let t = 0; t < numTiers; t++) {
+    let max = 0;
+    for (const tt of taskTiers) max = Math.max(max, (tt[t] || []).length);
+    tierMax.push(max);
+  }
+
+  // Build flat task list with act/task indices for D&D
+  const taskMeta = []; // { actIdx, taskIdx }
+  for (let ai = 0; ai < m.activities.length; ai++) {
+    const act = m.activities[ai];
+    for (let ti = 0; ti < (act.tasks.length || 1); ti++) {
+      taskMeta.push({ actIdx: ai, taskIdx: ti });
+    }
+  }
+
+  const root = document.createElement('div');
+  root.className = 'story-map';
+
+  // Title
+  if (m.title) {
+    const t = document.createElement('div');
+    t.className = 'map-title';
+    t.contentEditable = 'plaintext-only';
+    t.textContent = m.title;
+    t.addEventListener('blur', () => { m.title = t.textContent.trim() || null; syncText(); });
+    t.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); } });
+    root.appendChild(t);
+  }
+
+  // ── Backbone ──
+  const backbone = document.createElement('div');
+  backbone.className = 'backbone';
+
+  for (let ai = 0; ai < m.activities.length; ai++) {
+    const act = m.activities[ai];
+    const taskCount = Math.max(act.tasks.length, 1);
+    const actW = taskCount * 160 + (taskCount - 1) * 4;
+
+    const ag = document.createElement('div');
+    ag.className = 'activity-group';
+    ag.dataset.actIdx = ai;
+
+    // Activity header row
+    const ah = document.createElement('div');
+    ah.className = 'activity-header';
+
+    const ac = document.createElement('div');
+    ac.className = 'activity-card';
+    ac.contentEditable = 'plaintext-only';
+    ac.textContent = act.name;
+    ac.style.width = actW + 'px';
+    ac.addEventListener('blur', () => {
+      act.name = ac.textContent.trim() || '(unnamed)';
+      syncText(); rerender();
+    });
+    ac.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ac.blur(); } });
+
+    const removeActBtn = document.createElement('button');
+    removeActBtn.className = 'icon-btn';
+    removeActBtn.title = 'Remove activity';
+    removeActBtn.textContent = '×';
+    removeActBtn.addEventListener('click', () => {
+      m.activities.splice(ai, 1);
+      syncText(); rerender();
+    });
+
+    ah.appendChild(ac);
+    ah.appendChild(removeActBtn);
+    ag.appendChild(ah);
+
+    // Tasks row
+    const tr = document.createElement('div');
+    tr.className = 'tasks-row';
+
+    for (let ti = 0; ti < act.tasks.length; ti++) {
+      const task = act.tasks[ti];
+      const tc = document.createElement('div');
+      tc.className = 'task-col';
+      tc.dataset.actIdx = ai;
+      tc.dataset.taskIdx = ti;
+      tc.draggable = true;
+
+      // Task header
+      const th = document.createElement('div');
+      th.className = 'task-header';
+
+      const tkc = document.createElement('div');
+      tkc.className = 'task-card';
+      tkc.contentEditable = 'plaintext-only';
+      tkc.textContent = task.name;
+      tkc.addEventListener('blur', () => {
+        task.name = tkc.textContent.trim() || '(unnamed)';
+        syncText();
+      });
+      tkc.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tkc.blur(); } });
+
+      const removeTaskBtn = document.createElement('button');
+      removeTaskBtn.className = 'icon-btn';
+      removeTaskBtn.title = 'Remove task';
+      removeTaskBtn.textContent = '×';
+      removeTaskBtn.addEventListener('click', () => {
+        act.tasks.splice(ti, 1);
+        syncText(); rerender();
+      });
+
+      th.appendChild(tkc);
+      th.appendChild(removeTaskBtn);
+      tc.appendChild(th);
+
+      // Task drag events
+      tc.addEventListener('dragstart', e => {
+        if (e.target !== tc) return;
+        drag = { type: 'task', actIdx: ai, taskIdx: ti };
+        tc.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+      });
+      tc.addEventListener('dragend', () => {
+        drag = null;
+        document.querySelectorAll('.drag-over-task').forEach(el => el.classList.remove('drag-over-task'));
+        tc.classList.remove('dragging');
+      });
+      tc.addEventListener('dragover', e => {
+        if (!drag || drag.type !== 'task') return;
+        e.preventDefault();
+        tc.classList.add('drag-over-task');
+      });
+      tc.addEventListener('dragleave', () => tc.classList.remove('drag-over-task'));
+      tc.addEventListener('drop', e => {
+        e.preventDefault();
+        tc.classList.remove('drag-over-task');
+        if (!drag || drag.type !== 'task') return;
+        const { actIdx: fromAct, taskIdx: fromTask } = drag;
+        const toAct = parseInt(tc.dataset.actIdx), toTask = parseInt(tc.dataset.taskIdx);
+        if (fromAct === toAct && fromTask === toTask) return;
+        const [moved] = m.activities[fromAct].tasks.splice(fromTask, 1);
+        m.activities[toAct].tasks.splice(toTask, 0, moved);
+        syncText(); rerender();
+      });
+
+      tr.appendChild(tc);
+      // stories are added to tc below in the grid pass
+      taskColRefs.set(`${ai}-${ti}`, tc);
+    }
+
+    // Add task button
+    const addTask = document.createElement('button');
+    addTask.className = 'add-task-btn';
+    addTask.textContent = '+ task';
+    addTask.addEventListener('click', () => {
+      act.tasks.push({ name: 'New task', items: [] });
+      syncText(); rerender();
+    });
+    tr.appendChild(addTask);
+
+    ag.appendChild(tr);
+    backbone.appendChild(ag);
+  }
+
+  // Add activity button
+  const addActBtn = document.createElement('button');
+  addActBtn.className = 'add-activity-btn';
+  addActBtn.title = 'Add activity';
+  addActBtn.textContent = '+';
+  addActBtn.addEventListener('click', () => {
+    m.activities.push({ name: 'New activity', tasks: [] });
+    syncText(); rerender();
+  });
+  backbone.appendChild(addActBtn);
+  root.appendChild(backbone);
+
+  // ── Stories grid ──
+  const grid = document.createElement('div');
+  grid.className = 'stories-grid';
+  grid.style.gridTemplateColumns = `repeat(${numCols}, 160px)`;
+
+  // Rebuild a flat ordered task list (including phantom tasks for empty activities)
+  const flatTasks = [];
+  for (let ai = 0; ai < m.activities.length; ai++) {
+    const act = m.activities[ai];
+    if (act.tasks.length === 0) {
+      flatTasks.push({ actIdx: ai, taskIdx: null, task: { name: '', items: [] } });
+    } else {
+      for (let ti = 0; ti < act.tasks.length; ti++) {
+        flatTasks.push({ actIdx: ai, taskIdx: ti, task: act.tasks[ti] });
+      }
+    }
+  }
+
+  for (let tier = 0; tier < numTiers; tier++) {
+    const maxInTier = tierMax[tier];
+
+    if (maxInTier > 0) {
+      for (let slot = 0; slot < maxInTier; slot++) {
+
+        // ── Drop zone BEFORE each story slot row ──
+        const dz = document.createElement('div');
+        dz.className = 'rel-drop-zone';
+        dz.style.gridColumn = '1 / -1';
+        // Dropping here means: insert separator after slot-1 of this tier
+        // (i.e. split the tier so stories 0..slot-1 are above the line, slot.. below)
+        dz.dataset.dzTier = tier;
+        dz.dataset.dzSlot = slot; // insert before this slot
+        grid.appendChild(dz);
+
+        for (let col = 0; col < numCols; col++) {
+          const { actIdx, taskIdx, task } = flatTasks[col];
+          const tiers = taskTiers[col];
+          const storiesInTier = tiers[tier] || [];
+          const storyText = storiesInTier[slot];
+
+          const cell = document.createElement('div');
+          cell.className = 'story-cell';
+          cell.dataset.col = col;
+          cell.dataset.tier = tier;
+          cell.dataset.slot = slot;
+
+          if (storyText !== undefined) {
+            // Find the real item index in the task
+            const itemIdx = findItemIndex(task, tier, slot);
+
+            const card = document.createElement('div');
+            card.className = 'story-card';
+            card.contentEditable = 'plaintext-only';
+            card.draggable = true;
+            card.textContent = storyText;
+
+            card.addEventListener('blur', () => {
+              if (taskIdx === null) return;
+              const t = m.activities[actIdx].tasks[taskIdx];
+              const idx = findItemIndex(t, tier, slot);
+              if (idx >= 0) { t.items[idx].text = card.textContent.trim() || '(empty)'; syncText(); }
+            });
+            card.addEventListener('keydown', e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); card.blur(); }
+            });
+
+            // Story drag
+            card.addEventListener('dragstart', e => {
+              drag = { type: 'story', actIdx, taskIdx, tier, slot, col };
+              card.classList.add('dragging');
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', '');
+              e.stopPropagation();
+            });
+            card.addEventListener('dragend', () => {
+              drag = null;
+              card.classList.remove('dragging');
+              document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            });
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-story-btn';
+            removeBtn.title = 'Remove story';
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', () => {
+              if (taskIdx === null) return;
+              const t = m.activities[actIdx].tasks[taskIdx];
+              const idx = findItemIndex(t, tier, slot);
+              if (idx >= 0) { t.items.splice(idx, 1); syncText(); rerender(); }
+            });
+
+            cell.appendChild(card);
+            cell.appendChild(removeBtn);
+          }
+
+          // Drop target (both filled and empty cells)
+          cell.addEventListener('dragover', e => {
+            if (!drag || drag.type !== 'story') return;
+            e.preventDefault();
+            cell.classList.add('drag-over');
+          });
+          cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+          cell.addEventListener('drop', e => {
+            e.preventDefault();
+            cell.classList.remove('drag-over');
+            if (!drag || drag.type !== 'story') return;
+            const { actIdx: fAi, taskIdx: fTi, tier: fTier, slot: fSlot } = drag;
+            const toAi = flatTasks[col].actIdx;
+            const toTi = flatTasks[col].taskIdx;
+            if (toTi === null) return;
+            if (fAi === toAi && fTi === fSlot && fTier === tier && fSlot === slot) return;
+
+            const fromTask = m.activities[fAi].tasks[fTi];
+            const toTask = m.activities[toAi].tasks[toTi];
+            const fromIdx = findItemIndex(fromTask, fTier, fSlot);
+            if (fromIdx < 0) return;
+            const [movedItem] = fromTask.items.splice(fromIdx, 1);
+
+            // Insert into target tier at slot position
+            const toIdx = findItemIndex(toTask, tier, slot);
+            if (toIdx >= 0) {
+              toTask.items.splice(toIdx, 0, movedItem);
+            } else {
+              // Append at end of that tier
+              const insertAt = findTierEnd(toTask, tier);
+              toTask.items.splice(insertAt, 0, movedItem);
+            }
+            syncText(); rerender();
+          });
+
+          grid.appendChild(cell);
+        }
+        // ── end cols ──
+      }
+      // ── Drop zone AFTER last slot of this tier ──
+      const dzEnd = document.createElement('div');
+      dzEnd.className = 'rel-drop-zone';
+      dzEnd.style.gridColumn = '1 / -1';
+      dzEnd.dataset.dzTier = tier;
+      dzEnd.dataset.dzSlot = maxInTier; // after all slots = end of tier
+      grid.appendChild(dzEnd);
+    } else {
+      // Empty tier — still need one drop zone so you can target it
+      const dz = document.createElement('div');
+      dz.className = 'rel-drop-zone';
+      dz.style.gridColumn = '1 / -1';
+      dz.dataset.dzTier = tier;
+      dz.dataset.dzSlot = 0;
+      grid.appendChild(dz);
+    }
+
+    // Add story buttons (one per column, in this tier)
+    for (let col = 0; col < numCols; col++) {
+      const { actIdx, taskIdx } = flatTasks[col];
+      const cell = document.createElement('div');
+      cell.className = 'story-cell';
+
+      if (taskIdx !== null) {
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-story-btn';
+        addBtn.textContent = '+ story';
+        const capturedTier = tier;
+        addBtn.addEventListener('click', () => {
+          const task = m.activities[actIdx].tasks[taskIdx];
+          const insertAt = findTierEnd(task, capturedTier);
+          task.items.splice(insertAt, 0, { type: 'story', text: 'New story' });
+          syncText(); rerender();
+        });
+        cell.appendChild(addBtn);
+      }
+
+      grid.appendChild(cell);
+    }
+
+    // Release band
+    if (tier < releases.length) {
+      const relName = releases[tier];
+      const color = releaseColor(tier);
+
+      const band = document.createElement('div');
+      band.className = 'release-band';
+      band.style.gridColumn = '1 / -1';
+      band.dataset.relTier = tier;
+
+      // Grip handle — pointer-event drag (avoids HTML5 DnD re-render timing bugs)
+      const grip = document.createElement('span');
+      grip.className = 'release-grip';
+      grip.textContent = '⠿';
+      grip.title = 'Drag to reorder release';
+
+      grip.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        startReleaseDrag(e, tier, relName, color);
+      });
+
+      const labelWrap = document.createElement('div');
+      labelWrap.className = 'release-label-wrap';
+
+      const label = document.createElement('span');
+      label.className = 'release-label';
+      label.contentEditable = 'plaintext-only';
+      label.style.background = color;
+      label.textContent = relName;
+      label.addEventListener('blur', () => {
+        const newName = label.textContent.trim();
+        if (!newName || newName === relName) return;
+        // Rename this release in all tasks
+        renameRelease(m, tier, relName, newName);
+        syncText(); rerender();
+      });
+      label.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); label.blur(); } });
+
+      const removeRelBtn = document.createElement('button');
+      removeRelBtn.className = 'icon-btn';
+      removeRelBtn.title = 'Remove release line';
+      removeRelBtn.textContent = '×';
+      removeRelBtn.style.opacity = '0.4';
+      removeRelBtn.addEventListener('mouseenter', () => removeRelBtn.style.opacity = '1');
+      removeRelBtn.addEventListener('mouseleave', () => removeRelBtn.style.opacity = '0.4');
+      removeRelBtn.addEventListener('click', () => {
+        removeReleaseLine(m, tier);
+        syncText(); rerender();
+      });
+
+      labelWrap.appendChild(label);
+      labelWrap.appendChild(removeRelBtn);
+
+      const line = document.createElement('div');
+      line.className = 'release-line';
+      line.style.background = color;
+      line.style.opacity = '0.35';
+
+      // Add release line button (splits current tier in two)
+      const addRelBtn = document.createElement('button');
+      addRelBtn.style.cssText = 'font-size:11px; padding:3px 8px; border-style:dashed; color:var(--text-muted); border-radius:4px; white-space:nowrap;';
+      addRelBtn.textContent = '+ release';
+      addRelBtn.title = 'Insert release line above this one';
+      const capturedTier = tier;
+      addRelBtn.addEventListener('click', () => {
+        addReleaseLine(m, capturedTier);
+        syncText(); rerender();
+      });
+
+      band.appendChild(grip);
+      band.appendChild(labelWrap);
+      band.appendChild(line);
+      band.appendChild(addRelBtn);
+      grid.appendChild(band);
+    }
+  }
+
+  // Final "+ release" button after all tiers
+  const addRelAtEnd = document.createElement('button');
+  addRelAtEnd.style.cssText = 'grid-column: 1 / -1; font-size:11px; padding:4px 12px; border-style:dashed; color:var(--text-muted); border-radius:4px; margin-top:4px;';
+  addRelAtEnd.textContent = '+ release line';
+  addRelAtEnd.addEventListener('click', () => {
+    addReleaseLine(m, numTiers - 1);
+    syncText(); rerender();
+  });
+  grid.appendChild(addRelAtEnd);
+
+  root.appendChild(grid);
+  container.innerHTML = '';
+  container.appendChild(root);
+}
+
+// Temporary map for task column refs during render
+const taskColRefs = new Map();
+
+// ─────────────────────────────────────────────
+// ITEM INDEX HELPERS
+// ─────────────────────────────────────────────
+
+// Find the index in task.items of the story at (tier, slot)
+function findItemIndex(task, tier, slot) {
+  let t = 0, s = 0;
+  for (let i = 0; i < task.items.length; i++) {
+    const item = task.items[i];
+    if (item.type === 'release') { t++; s = 0; continue; }
+    if (t === tier && s === slot) return i;
+    s++;
+  }
+  return -1;
+}
+
+// Find the index just after the last item in tier `tier` (where we'd append a new story)
+function findTierEnd(task, tier) {
+  let t = 0;
+  for (let i = 0; i < task.items.length; i++) {
+    const item = task.items[i];
+    if (item.type === 'release') {
+      if (t === tier) return i; // insert before this separator
+      t++;
+    }
+  }
+  return task.items.length; // end of array
+}
+
+// Remove the Nth release separator from all tasks (merging the tiers around it)
+function removeReleaseLine(m, tierIdx) {
+  for (const act of m.activities) {
+    for (const task of act.tasks) {
+      let n = 0;
+      for (let i = 0; i < task.items.length; i++) {
+        if (task.items[i].type === 'release') {
+          if (n === tierIdx) { task.items.splice(i, 1); break; }
+          n++;
+        }
+      }
+    }
+  }
+}
+
+// Insert a new release separator after all stories in tier `tierIdx` across all tasks
+function addReleaseLine(m, tierIdx) {
+  const name = 'New release';
+  for (const act of m.activities) {
+    for (const task of act.tasks) {
+      const insertAt = findTierEnd(task, tierIdx);
+      task.items.splice(insertAt, 0, { type: 'release', name });
+    }
+  }
+}
+
+// Insert a new release separator before slot `atSlot` within tier `tier` in every task.
+// Stories 0..atSlot-1 stay above the line; stories atSlot.. go below.
+function insertReleaseAtSlot(m, tier, atSlot, name = 'New release') {
+  for (const act of m.activities) {
+    for (const task of act.tasks) {
+      // Find the index in items of story[tier][atSlot]
+      // If atSlot >= stories in that tier, insert at end of tier
+      let insertAt = findItemIndex(task, tier, atSlot);
+      if (insertAt < 0) insertAt = findTierEnd(task, tier);
+      task.items.splice(insertAt, 0, { type: 'release', name });
+    }
+  }
+}
+
+// Move an existing release line (fromTier) so it sits before slot `atSlot`
+// within tier `targetTier` (after the fromTier separator has been removed).
+function moveReleaseToSlot(m, fromTier, targetTier, atSlot) {
+  // We need to:
+  // 1. Remove the separator at fromTier from every task, collecting its name
+  // 2. Re-insert it at the right position
+  // But removing it changes tier numbering, so compute targetTier after removal.
+
+  // Collect the name from the first task that has it
+  let relName = 'Release';
+  for (const act of m.activities) {
+    for (const task of act.tasks) {
+      let n = 0;
+      for (const item of task.items) {
+        if (item.type !== 'release') continue;
+        if (n === fromTier) { relName = item.name || relName; break; }
+        n++;
+      }
+    }
+    break;
+  }
+
+  // Remove fromTier separator from all tasks
+  removeReleaseLine(m, fromTier);
+
+  // After removal, targetTier shifts down by 1 if fromTier < targetTier
+  let adjustedTier = targetTier;
+  if (fromTier < targetTier) adjustedTier--;
+
+  // Now insert at the adjusted position
+  insertReleaseAtSlot(m, adjustedTier, atSlot, relName);
+}
+
+// Rename a release (by its old name, at its tier position) across all tasks
+function renameRelease(m, tierIdx, oldName, newName) {
+  for (const act of m.activities) {
+    for (const task of act.tasks) {
+      let n = 0;
+      for (const item of task.items) {
+        if (item.type !== 'release') continue;
+        if (n === tierIdx) { item.name = newName; break; }
+        n++;
+      }
+    }
+  }
+}
+
+// Move the release separator at fromTier to sit just before the separator at toTier.
+// Works by swapping the Nth release items across all tasks simultaneously.
+// ─────────────────────────────────────────────
+// RELEASE LINE POINTER-DRAG
+// ─────────────────────────────────────────────
+
+const ghost = document.getElementById('release-ghost');
+
+function startReleaseDrag(e, fromTier, relName, color) {
+  ghost.textContent = relName;
+  ghost.style.background = color;
+  ghost.style.display = 'block';
+  ghost.style.left = (e.clientX + 14) + 'px';
+  ghost.style.top  = (e.clientY - 10) + 'px';
+
+  // Dim source band, activate drop zones
+  document.querySelector(`.release-band[data-rel-tier="${fromTier}"]`)?.classList.add('rel-dragging');
+  document.body.classList.add('rel-dragging-active');
+
+  let currentZone = null; // the .rel-drop-zone element currently highlighted
+
+  function onMove(ev) {
+    ghost.style.left = (ev.clientX + 14) + 'px';
+    ghost.style.top  = (ev.clientY - 10) + 'px';
+
+    ghost.style.display = 'none';
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    ghost.style.display = 'block';
+
+    // Check if we're over a drop zone or a release band
+    const zone = el && (el.closest('.rel-drop-zone') || el.closest('.release-band'));
+
+    document.querySelectorAll('.rel-drop-zone-over, .rel-drag-over')
+      .forEach(n => { n.classList.remove('rel-drop-zone-over'); n.classList.remove('rel-drag-over'); });
+
+    if (zone) {
+      zone.classList.add(zone.classList.contains('rel-drop-zone') ? 'rel-drop-zone-over' : 'rel-drag-over');
+      currentZone = zone;
+    } else {
+      currentZone = null;
+    }
+  }
+
+  function onUp() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+
+    ghost.style.display = 'none';
+    document.body.classList.remove('rel-dragging-active');
+    document.querySelectorAll('.rel-drop-zone-over, .rel-drag-over, .rel-dragging')
+      .forEach(n => n.classList.remove('rel-drop-zone-over', 'rel-drag-over', 'rel-dragging'));
+
+    if (!currentZone) return;
+
+    if (currentZone.classList.contains('rel-drop-zone')) {
+      const dzTier = parseInt(currentZone.dataset.dzTier);
+      const dzSlot = parseInt(currentZone.dataset.dzSlot);
+      moveReleaseToSlot(model, fromTier, dzTier, dzSlot);
+    } else {
+      // Dropped on an existing band — treat as swap
+      const toTier = parseInt(currentZone.dataset.relTier);
+      if (toTier === fromTier) return;
+      moveReleaseLine(model, fromTier, toTier);
+    }
+
+    syncText(); rerender();
+  }
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function moveReleaseLine(m, fromTier, toTier) {
+  for (const act of m.activities) {
+    for (const task of act.tasks) {
+      // Split into alternating buckets:
+      //   storyBuckets[0]  = stories before separator 0
+      //   storyBuckets[1]  = stories between separator 0 and 1
+      //   etc.
+      // Then reorder the separator indices and rebuild.
+      const storyBuckets = [[]];
+      const sepItems = [];
+      for (const item of task.items) {
+        if (item.type === 'release') { sepItems.push(item); storyBuckets.push([]); }
+        else storyBuckets[storyBuckets.length - 1].push(item);
+      }
+
+      if (fromTier >= sepItems.length || toTier >= sepItems.length) continue;
+
+      // Reorder separator list
+      const [movedSep] = sepItems.splice(fromTier, 1);
+      sepItems.splice(toTier, 0, movedSep);
+
+      // Reorder story buckets: bucket[i+1] travels with separator[i]
+      // bucket[0] is always fixed (stories before any separator).
+      // The rest follow their separator in the original pairing.
+      const movedBucket = storyBuckets.splice(fromTier + 1, 1)[0];
+      storyBuckets.splice(toTier + 1, 0, movedBucket);
+
+      // Rebuild items: bucket[0], sep[0], bucket[1], sep[1], ...
+      task.items = [];
+      for (let i = 0; i < storyBuckets.length; i++) {
+        task.items.push(...storyBuckets[i]);
+        if (i < sepItems.length) task.items.push(sepItems[i]);
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// SYNC
+// ─────────────────────────────────────────────
+
+const editor = document.getElementById('editor');
+const errorPanel = document.getElementById('error-panel');
+
+function syncText() {
+  suppressTextSync = true;
+  editor.value = serialize(model);
+  suppressTextSync = false;
+}
+
+function rerender() {
+  renderMap(model);
+}
+
+function applyText(text) {
+  const parsed = parse(text);
+  // Show errors
+  if (parsed.errors.length > 0) {
+    errorPanel.classList.remove('hidden');
+    errorPanel.innerHTML = parsed.errors.map(e =>
+      `<div class="error-line">Line ${e.line}: ${esc(e.message)}</div>`
+    ).join('');
+  } else {
+    errorPanel.classList.add('hidden');
+  }
+  model = { title: parsed.title, activities: parsed.activities };
+  rerender();
+}
+
+editor.addEventListener('input', () => {
+  if (suppressTextSync) return;
+  applyText(editor.value);
+});
+
+// ─────────────────────────────────────────────
+// SVG EXPORT
+// ─────────────────────────────────────────────
+
+function exportSVG(m) {
+  if (m.activities.length === 0) return alert('Nothing to export.');
+
+  const PAD = 24, CARD_W = 160, GAP = 4;
+  const ACT_H = 40, TASK_H = 36, STORY_H = 48, RELEASE_H = 28, TITLE_H = m.title ? 44 : 0;
+
+  const { releases } = computeReleases(m.activities);
+  const tasks = allTasks(m.activities);
+  const numCols = tasks.length, numTiers = releases.length + 1;
+  const taskTiersArr = tasks.map(t => splitTiers(t));
+  const tierMax = [];
+  for (let t = 0; t < numTiers; t++) {
+    let max = 0;
+    for (const tt of taskTiersArr) max = Math.max(max, (tt[t] || []).length);
+    tierMax.push(max);
+  }
+
+  const totalW = PAD * 2 + numCols * CARD_W + (numCols - 1) * GAP;
+  let storiesH = 0;
+  for (let t = 0; t < numTiers; t++) {
+    const n = tierMax[t];
+    if (n > 0) storiesH += n * STORY_H + (n - 1) * GAP + GAP;
+    if (t < releases.length) storiesH += RELEASE_H + GAP;
+  }
+  const totalH = PAD * 2 + TITLE_H + ACT_H + GAP + TASK_H + GAP + storiesH;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" font-family="system-ui, sans-serif">`;
+  svg += `<rect width="${totalW}" height="${totalH}" fill="#f7f7f5"/>`;
+
+  let y = PAD;
+  if (m.title) {
+    svg += `<text x="${PAD}" y="${y+28}" font-size="20" font-weight="700" fill="#1a1a18">${esc(m.title)}</text>`;
+    y += TITLE_H;
+  }
+
+  let colIdx = 0;
+  for (const act of m.activities) {
+    const tc = Math.max(act.tasks.length, 1);
+    const actW = tc * CARD_W + (tc - 1) * GAP;
+    const ax = PAD + colIdx * (CARD_W + GAP);
+    svg += `<rect x="${ax}" y="${y}" width="${actW}" height="${ACT_H}" rx="8" ry="8" fill="#1a1a18"/>`;
+    svg += svgText(esc(act.name), ax + actW/2, y + ACT_H/2 + 5, 13, '#fff', 'bold', 'middle');
+    colIdx += tc;
+  }
+  y += ACT_H + GAP;
+
+  for (let col = 0; col < numCols; col++) {
+    const tx = PAD + col * (CARD_W + GAP);
+    svg += `<rect x="${tx}" y="${y}" width="${CARD_W}" height="${TASK_H}" fill="#e8e4de"/>`;
+    svg += svgText(esc(tasks[col].name), tx + CARD_W/2, y + TASK_H/2 + 5, 12, '#1a1a18', 'bold', 'middle');
+  }
+  y += TASK_H + GAP;
+
+  for (let tier = 0; tier < numTiers; tier++) {
+    const maxInTier = tierMax[tier];
+    for (let slot = 0; slot < maxInTier; slot++) {
+      for (let col = 0; col < numCols; col++) {
+        const story = (taskTiersArr[col][tier] || [])[slot];
+        if (story === undefined) continue;
+        const sx = PAD + col * (CARD_W + GAP), sy = y + slot * (STORY_H + GAP);
+        svg += `<rect x="${sx}" y="${sy}" width="${CARD_W}" height="${STORY_H}" rx="6" ry="6" fill="#fff" stroke="#d0ccc6" stroke-width="1"/>`;
+        const lines = wrapText(story, 22);
+        const lineH = 14;
+        const startY = sy + STORY_H/2 - ((lines.length-1)*lineH)/2;
+        lines.forEach((l, li) => svg += svgText(esc(l), sx + CARD_W/2, startY + li*lineH + 4, 11, '#1a1a18', 'normal', 'middle'));
+      }
+    }
+    if (maxInTier > 0) y += maxInTier * STORY_H + (maxInTier-1) * GAP + GAP;
+
+    if (tier < releases.length) {
+      const relName = releases[tier], color = releaseColor(tier);
+      const labelW = relName.length * 7.5 + 16;
+      const by = y + 4;
+      svg += `<rect x="${PAD}" y="${by}" width="${labelW}" height="20" rx="4" ry="4" fill="${color}"/>`;
+      svg += svgText(esc(relName.toUpperCase()), PAD + labelW/2, by+14, 10, '#fff', 'bold', 'middle');
+      const lineX = PAD + labelW + 10, lineW = totalW - PAD*2 - labelW - 10;
+      svg += `<rect x="${lineX}" y="${by+9}" width="${Math.max(0,lineW)}" height="2" rx="1" fill="${color}" opacity="0.4"/>`;
+      y += RELEASE_H + GAP;
+    }
+  }
+
+  svg += '</svg>';
+  download(svg, (m.title || 'storymap') + '.svg', 'image/svg+xml');
+}
+
+function svgText(text, x, y, size, fill, weight, anchor) {
+  return `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}">${text}</text>`;
+}
+
+function wrapText(str, maxLen) {
+  const words = str.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > maxLen && cur) { lines.push(cur); cur = w; }
+    else cur = (cur + ' ' + w).trim();
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// ─────────────────────────────────────────────
+// HTML EXPORT
+// ─────────────────────────────────────────────
+
+function exportHTML(m) {
+  if (m.activities.length === 0) return alert('Nothing to export.');
+  // Render a static (non-editable) version of the map for export
+  const staticHTML = buildStaticHTML(m);
+  const css = document.querySelector('style').textContent;
+  const pageTitle = m.title || 'Story Map';
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${esc(pageTitle)}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    ${css}
+    body { overflow: auto; background: #f7f7f5; padding: 32px; }
+    [contenteditable] { cursor: default; }
+  </style>
+</head>
+<body>${staticHTML}</body>
+</html>`;
+  download(html, (pageTitle.replace(/\s+/g,'-').toLowerCase()||'storymap')+'.html', 'text/html');
+}
+
+function buildStaticHTML(m) {
+  // Build a simplified read-only HTML map (no interactive elements)
+  const { releases } = computeReleases(m.activities);
+  const tasks = allTasks(m.activities);
+  const numCols = tasks.length, numTiers = releases.length + 1;
+  const taskTiersArr = tasks.map(t => splitTiers(t));
+  const tierMax = [];
+  for (let t = 0; t < numTiers; t++) {
+    let max = 0;
+    for (const tt of taskTiersArr) max = Math.max(max, (tt[t]||[]).length);
+    tierMax.push(max);
+  }
+
+  let h = '<div class="story-map">';
+  if (m.title) h += `<div class="map-title">${esc(m.title)}</div>`;
+  h += '<div class="backbone">';
+  for (const act of m.activities) {
+    const tc = Math.max(act.tasks.length, 1);
+    const actW = tc * 160 + (tc-1)*4;
+    h += `<div class="activity-group"><div class="activity-header"><div class="activity-card" style="width:${actW}px">${esc(act.name)}</div></div><div class="tasks-row">`;
+    for (const task of (act.tasks.length ? act.tasks : [{name:'',items:[]}])) {
+      h += `<div class="task-col"><div class="task-header"><div class="task-card">${esc(task.name)}</div></div></div>`;
+    }
+    h += '</div></div>';
+  }
+  h += '</div>';
+  h += `<div class="stories-grid" style="grid-template-columns:repeat(${numCols},160px);">`;
+  for (let tier = 0; tier < numTiers; tier++) {
+    const maxInTier = tierMax[tier];
+    if (maxInTier > 0) {
+      for (let slot = 0; slot < maxInTier; slot++) {
+        for (let col = 0; col < numCols; col++) {
+          const story = (taskTiersArr[col][tier]||[])[slot];
+          h += `<div class="story-cell">${story !== undefined ? `<div class="story-card">${esc(story)}</div>` : ''}</div>`;
+        }
+      }
+    }
+    if (tier < releases.length) {
+      const relName = releases[tier], color = releaseColor(tier);
+      h += `<div class="release-band" style="grid-column:1/-1"><div class="release-label-wrap"><span class="release-label" style="background:${color}">${esc(relName)}</span></div><div class="release-line" style="background:${color};opacity:0.35"></div></div>`;
+    }
+  }
+  h += '</div></div>';
+  return h;
+}
+
+// ─────────────────────────────────────────────
+// DOWNLOAD
+// ─────────────────────────────────────────────
+
+function download(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─────────────────────────────────────────────
+// EXAMPLE
+// ─────────────────────────────────────────────
+
+const EXAMPLE = `title: Online Bookshop
+
+activity: Discover Books
+  task: Browse catalogue
+    story: See featured books on the homepage
+    story: Browse books by genre
+    --- MVP
+    story: See new releases and bestsellers
+    story: View staff picks and curated lists
+    --- V2
+    story: See books on sale
+    story: See personalised recommendations
+  task: Search
+    story: Search by title or author
+    story: Filter results by price range
+    --- MVP
+    story: Filter by format (ebook, hardback)
+    story: Sort results by relevance or rating
+    --- V2
+    story: See search suggestions as I type
+    story: See "did you mean?" for typos
+
+activity: Evaluate a Book
+  task: View book details
+    story: Read the full synopsis
+    story: See the cover image
+    --- MVP
+    story: View all available formats and editions
+    story: See page count and publisher info
+  task: Read reviews
+    story: Read editorial reviews
+    --- MVP
+    story: Read customer reviews with ratings
+    story: Filter reviews by star rating
+    --- V2
+    story: Mark a review as helpful
+    story: See top critical and positive reviews
+  task: Check availability
+    story: See if the book is in stock
+    --- MVP
+    story: See estimated delivery date
+    story: See store pickup availability
+
+activity: Purchase
+  task: Manage cart
+    story: Add a book to my cart
+    story: Remove items from my cart
+    --- MVP
+    story: See running cart total
+    story: Save an item for later
+    --- V2
+    story: See stock warnings for low inventory
+  task: Checkout
+    story: Enter my delivery address
+    story: Pay by card
+    story: Receive a confirmation email
+    --- MVP
+    story: Choose a delivery speed
+    story: Apply a discount code
+    --- V2
+    story: Pay via saved payment method
+    story: Review order before confirming
+
+activity: Post-purchase
+  task: Track order
+    story: See my order status in my account
+    --- MVP
+    story: Receive shipping notification
+    story: See estimated delivery window
+  task: Return
+    story: Request a return within 30 days
+    --- MVP
+    story: Print a prepaid return label
+    --- V2
+    story: Track the status of my refund
+`;
+
+// ─────────────────────────────────────────────
+// RESIZE HANDLE
+// ─────────────────────────────────────────────
+
+const handle = document.getElementById('resize-handle');
+const editorPane = document.getElementById('editor-pane');
+let dragging = false, startX = 0, startW = 0;
+
+handle.addEventListener('mousedown', e => {
+  dragging = true; startX = e.clientX; startW = editorPane.offsetWidth;
+  handle.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  editorPane.style.width = Math.max(160, Math.min(700, startW + e.clientX - startX)) + 'px';
+});
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false; handle.classList.remove('dragging');
+  document.body.style.userSelect = '';
+});
+
+// ─────────────────────────────────────────────
+// TOOLBAR
+// ─────────────────────────────────────────────
+
+document.getElementById('btn-example').addEventListener('click', () => {
+  editor.value = EXAMPLE;
+  applyText(EXAMPLE);
+});
+document.getElementById('btn-export-svg').addEventListener('click', () => exportSVG(model));
+document.getElementById('btn-export-html').addEventListener('click', () => exportHTML(model));
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+
+editor.value = EXAMPLE;
+applyText(EXAMPLE);
+</script>
+</body>
+</html>
