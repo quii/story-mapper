@@ -22,6 +22,20 @@
   gap: 6px;
 }
 
+.aiBtn {
+  background: #1a1a18;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.aiBtn:hover { background: #333; }
+
 .btn {
   background: none;
   border: 1px solid #d0ccc6;

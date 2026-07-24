@@ -9,9 +9,10 @@ interface Props {
   text: string;
   model: StoryMap;
   onLoadExample: () => void;
+  onOpenAi: () => void;
 }
 
-export function Toolbar({ text, model, onLoadExample }: Props) {
+export function Toolbar({ text, model, onLoadExample, onOpenAi }: Props) {
   const [toast, setToast] = useState('');
 
   const showToast = (msg: string) => {
@@ -33,6 +34,7 @@ export function Toolbar({ text, model, onLoadExample }: Props) {
     <header className={styles.toolbar}>
       <span className={styles.brand}>Story Map</span>
       <div className={styles.actions}>
+        <button className={styles.aiBtn} onClick={onOpenAi}>✦ Work with AI</button>
         <button className={styles.btn} onClick={onShare}>Share</button>
         <button className={styles.btn} onClick={onLoadExample}>Example</button>
         <button className={styles.btn} onClick={() => exportSvg(model)}>Export SVG</button>
