@@ -100,6 +100,8 @@
     }
 
     #editor {
+      position: relative;
+      z-index: 1;
       flex: 1;
       font-family: var(--font-mono);
       font-size: 12px;
@@ -108,14 +110,17 @@
       border: none;
       outline: none;
       resize: none;
-      color: var(--text);
+      color: transparent;
+      caret-color: var(--text);
       overflow-y: auto;
       tab-size: 2;
-      width: 100%;
-      height: 100%;
       box-sizing: border-box;
+      background: transparent;
+      min-width: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
-    #editor::selection { background: #c8d8f0; }
+    #editor::selection { background: rgba(200, 216, 240, 0.6); }
 
     .error-panel {
       border-top: 2px solid var(--error);
@@ -170,29 +175,78 @@
 
     /* Editor line highlight overlay */
     .editor-wrap {
-      position: relative;
       flex: 1;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       overflow: hidden;
     }
 
-    #editor-highlights {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none;
+    /* Gutter: coloured stripe per line, avoids any text-wrap sync issues */
+    #editor-gutter {
+      width: 4px;
+      flex-shrink: 0;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding-top: 14px;
+      box-sizing: border-box;
+      background: var(--surface);
+    }
+
+    .gutter-mark {
+      flex-shrink: 0;
+      width: 4px;
+      /* height set in JS to match line-height */
+    }
+    .gutter-mark.gutter-error   { background: var(--error); }
+    .gutter-mark.gutter-warning { background: #c47c1a; }
+    .gutter-mark.gutter-none    { background: transparent; }
+
+    /* Syntax highlight layer — sits behind the textarea */
+    #editor-highlight-layer {
+      position: absolute;
+      top: 0; left: 4px; right: 0; bottom: 0;
       padding: 14px;
       font-family: var(--font-mono);
       font-size: 12px;
       line-height: 1.7;
       white-space: pre-wrap;
-      word-break: break-all;
+      word-wrap: break-word;
+      overflow: hidden;
+      pointer-events: none;
       box-sizing: border-box;
+      color: transparent;
+      z-index: 0;
     }
 
-    .hl-line-error   { background: rgba(192, 57, 43, 0.10); display: block; margin: 0 -14px; padding: 0 14px; }
-    .hl-line-warning { background: rgba(176, 96,  0, 0.08); display: block; margin: 0 -14px; padding: 0 14px; }
+    #editor-highlight-layer .hl-kw-title    { color: var(--text-muted); font-style: italic; }
+    #editor-highlight-layer .hl-kw-activity { color: #1a1a18; font-weight: 700; }
+    #editor-highlight-layer .hl-kw-task     { color: #4a6fa5; font-weight: 600; }
+    #editor-highlight-layer .hl-kw-story    { color: #2e7d5e; }
+    #editor-highlight-layer .hl-kw-release  { color: #c0392b; font-weight: 600; }
+    #editor-highlight-layer .hl-kw-comment  { color: #aaa8a4; font-style: italic; }
+    #editor-highlight-layer .hl-text        { color: var(--text); }
+
+    .editor-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #editor-gutter {
+      width: 4px;
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding-top: 14px;
+      box-sizing: border-box;
+      background: var(--surface);
+      position: relative;
+      z-index: 2;
+    }
 
     .format-hint {
       padding: 10px 14px;
@@ -207,16 +261,6 @@
       align-items: center;
       gap: 0;
       padding: 3px 0;
-    }
-    .format-hint .hint-indent {
-      display: inline-flex;
-      gap: 0;
-    }
-    .format-hint .hint-pip {
-      width: 16px;
-      border-left: 1px dashed #d0ccc6;
-      height: 22px;
-      flex-shrink: 0;
     }
     .format-hint .hint-kw {
       padding: 2px 6px;
@@ -691,27 +735,17 @@
   <div class="editor-pane" id="editor-pane">
     <div class="pane-header">Source</div>
     <div class="editor-wrap">
-      <div id="editor-highlights" aria-hidden="true"></div>
-      <textarea id="editor" spellcheck="false" style="background:transparent;position:relative;z-index:1;"></textarea>
+      <div id="editor-gutter" aria-hidden="true"></div>
+      <div id="editor-highlight-layer" aria-hidden="true"></div>
+      <textarea id="editor" spellcheck="false"></textarea>
     </div>
     <div class="error-panel hidden" id="error-panel"></div>
     <div class="format-hint">
-      <div class="hint-line">
-        <span class="hint-kw kw-a">activity: Name</span><span class="hint-desc">column group</span>
-      </div>
-      <div class="hint-line">
-        <span class="hint-indent"><span class="hint-pip"></span></span>
-        <span class="hint-kw kw-t">task: Name</span><span class="hint-desc">step within activity</span>
-      </div>
-      <div class="hint-line">
-        <span class="hint-indent"><span class="hint-pip"></span><span class="hint-pip"></span></span>
-        <span class="hint-kw kw-s">story: Text</span><span class="hint-desc">a behaviour</span>
-      </div>
-      <div class="hint-line">
-        <span class="hint-indent"><span class="hint-pip"></span><span class="hint-pip"></span></span>
-        <span class="hint-kw kw-r">--- Release</span><span class="hint-desc">release line</span>
-      </div>
-      <div class="hint-tab-tip"><kbd>Tab</kbd> to indent &nbsp; <kbd>Shift+Tab</kbd> to dedent &nbsp; <kbd>Enter</kbd> keeps indent</div>
+      <div class="hint-line"><span class="hint-kw kw-a">activity: Name</span><span class="hint-desc">column group</span></div>
+      <div class="hint-line"><span class="hint-kw kw-t">task: Name</span><span class="hint-desc">step within activity</span></div>
+      <div class="hint-line"><span class="hint-kw kw-s">story: Text</span><span class="hint-desc">a behaviour</span></div>
+      <div class="hint-line"><span class="hint-kw kw-r">--- Release</span><span class="hint-desc">release line</span></div>
+      <div class="hint-tab-tip">Indent is optional — keywords define structure</div>
     </div>
   </div>
 
@@ -790,7 +824,8 @@ function editDistance(a, b) {
 }
 
 /*
- * parse() — leniently builds the model while emitting typed diagnostics.
+ * parse() — builds the model while emitting typed diagnostics.
+ * Indentation is completely optional — structure is determined by keywords alone.
  * Returns { title, activities, diagnostics }
  * diagnostics: [{ severity, line, message, suggestion? }]
  */
@@ -801,58 +836,16 @@ function parse(text) {
   const activities = [];
   let curAct = null, curTask = null;
 
-  // ── Pass 1: detect global formatting issues ──
-
-  // Tab indentation
-  const tabLines = lines.map((l, i) => ({ l, i })).filter(({ l }) => /^\t/.test(l));
-  for (const { i } of tabLines) {
-    diagnostics.push({
-      severity: SEV.ERROR,
-      line: i + 1,
-      message: 'Tab used for indentation — use spaces instead.',
-      suggestion: 'Replace leading tabs with 2 spaces per level.',
-    });
-  }
-
-  // Detect dominant indent unit (2 or 4 spaces) and flag inconsistent lines
-  const indentedLines = lines.filter(l => /^ +/.test(l));
-  const indentSizes = indentedLines.map(l => l.match(/^ +/)[0].length);
-  if (indentSizes.length > 0) {
-    const gcd = indentSizes.reduce((a, b) => b === 0 ? a : gcd2(a, b));
-    const unit = gcd > 0 ? gcd : 2;
-    for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^ +/);
-      if (!m) continue;
-      if (m[0].length % unit !== 0) {
-        diagnostics.push({
-          severity: SEV.WARN,
-          line: i + 1,
-          message: `Inconsistent indentation (${m[0].length} spaces; expected a multiple of ${unit}).`,
-        });
-      }
-    }
-  }
-
-  // ── Pass 2: parse line-by-line ──
-
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const lineNo = i + 1;
 
-    // skip blank and comment lines
     if (raw.trim() === '' || raw.trim().startsWith('#')) continue;
-    // skip lines already flagged as tab-indented (can't parse them reliably)
-    if (/^\t/.test(raw)) continue;
 
-    const indent = raw.length - raw.trimStart().length;
     const content = raw.trim();
 
     // ── title ──
     if (/^title\s*:/i.test(content)) {
-      if (indent !== 0) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`title` must not be indented.', suggestion: 'Remove leading spaces.' });
-        continue;
-      }
       const val = content.replace(/^title\s*:\s*/i, '').trim();
       if (!val) diagnostics.push({ severity: SEV.WARN, line: lineNo, message: '`title` has no value.' });
       else title = val;
@@ -861,10 +854,6 @@ function parse(text) {
 
     // ── activity ──
     if (/^activity\s*:/i.test(content)) {
-      if (indent !== 0) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`activity` must not be indented.', suggestion: 'Remove leading spaces.' });
-        continue;
-      }
       const name = content.replace(/^activity\s*:\s*/i, '').trim();
       if (!name) diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`activity` has no name.' });
       curAct = { name: name || '(unnamed)', tasks: [] };
@@ -876,11 +865,7 @@ function parse(text) {
     // ── task ──
     if (/^task\s*:/i.test(content)) {
       if (!curAct) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`task` must be inside an `activity`.', suggestion: 'Add an `activity:` line above this.' });
-        continue;
-      }
-      if (indent === 0) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`task` must be indented under its `activity`.', suggestion: 'Indent with 2 spaces.' });
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`task` must come after an `activity`.', suggestion: 'Add an `activity:` line above this.' });
         continue;
       }
       const name = content.replace(/^task\s*:\s*/i, '').trim();
@@ -893,11 +878,7 @@ function parse(text) {
     // ── story ──
     if (/^story\s*:/i.test(content)) {
       if (!curTask) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`story` must be inside a `task`.', suggestion: 'Add a `task:` line above this.' });
-        continue;
-      }
-      if (indent < 2) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`story` must be indented under its `task`.', suggestion: 'Indent with 4 spaces (2 per level).' });
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`story` must come after a `task`.', suggestion: 'Add a `task:` line above this.' });
         continue;
       }
       const val = content.replace(/^story\s*:\s*/i, '').trim();
@@ -910,11 +891,7 @@ function parse(text) {
     // ── release separator ──
     if (/^---/.test(content)) {
       if (!curTask) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: 'Release separator `---` must be inside a `task`.', suggestion: 'Indent with 4 spaces under a `task:`.' });
-        continue;
-      }
-      if (indent < 2) {
-        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: 'Release separator must be indented under its `task`.', suggestion: 'Indent with 4 spaces.' });
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: 'Release separator `---` must come after a `task`.', suggestion: 'Add a `task:` line above this.' });
         continue;
       }
       const name = content.replace(/^-+\s*/, '').trim() || null;
@@ -924,34 +901,24 @@ function parse(text) {
 
     // ── unknown keyword — try to suggest ──
     const word = content.split(/[\s:]/)[0];
-    const suggestion = closestKeyword(word);
-
-    // Extra: detect plural forms specifically (AI loves these)
     const pluralMap = { activities: 'activity', tasks: 'task', stories: 'story', releases: 'release' };
     if (pluralMap[word.toLowerCase()]) {
       diagnostics.push({
-        severity: SEV.ERROR,
-        line: lineNo,
+        severity: SEV.ERROR, line: lineNo,
         message: `Unknown keyword \`${word}\` — did you use the plural form?`,
         suggestion: `Use \`${pluralMap[word.toLowerCase()]}:\` instead.`,
       });
-    } else if (suggestion) {
-      diagnostics.push({
-        severity: SEV.ERROR,
-        line: lineNo,
-        message: `Unknown keyword \`${word}\`.`,
-        suggestion: `Did you mean \`${suggestion}:\`?`,
-      });
     } else {
+      const suggestion = closestKeyword(word);
       diagnostics.push({
-        severity: SEV.ERROR,
-        line: lineNo,
+        severity: SEV.ERROR, line: lineNo,
         message: `Unknown keyword \`${word}\`.`,
+        ...(suggestion ? { suggestion: `Did you mean \`${suggestion}:\`?` } : {}),
       });
     }
   }
 
-  // ── Pass 3: semantic / structural warnings ──
+  // ── Semantic / structural warnings ──
 
   if (activities.length === 0 && text.trim().length > 0) {
     diagnostics.push({ severity: SEV.WARN, line: null, message: 'No activities found. Add at least one `activity:` line.' });
@@ -1004,10 +971,10 @@ function serialize(m) {
   for (const act of m.activities) {
     lines.push(`activity: ${act.name}`);
     for (const task of act.tasks) {
-      lines.push(`  task: ${task.name}`);
+      lines.push(`task: ${task.name}`);
       for (const item of task.items) {
-        if (item.type === 'story') lines.push(`    story: ${item.text}`);
-        else lines.push(`    --- ${item.name || ''}`);
+        if (item.type === 'story') lines.push(`story: ${item.text}`);
+        else lines.push(`--- ${item.name || ''}`);
       }
     }
     lines.push('');
@@ -1064,13 +1031,13 @@ function renderMap(m) {
     container.innerHTML = `<div class="empty-state">
       <h2>Story Map Editor</h2>
       <p>A story map organises work as <strong>activities</strong> across the top, <strong>tasks</strong> underneath, and <strong>stories</strong> in columns below. Draw horizontal <strong>release lines</strong> to slice across them.</p>
-      <pre class="syntax-block"><span class="kw-comment"># each level is 2 spaces deeper</span>
+      <pre class="syntax-block"><span class="kw-comment"># keywords define the structure</span>
 <span class="kw-activity">activity:</span> A user goal
-  <span class="kw-task">task:</span> A step to achieve it
-    <span class="kw-story">story:</span> A specific behaviour
-    <span class="kw-story">story:</span> Another behaviour
-    <span class="kw-release">--- Release name</span>
-    <span class="kw-story">story:</span> A later behaviour</pre>
+<span class="kw-task">task:</span> A step to achieve it
+<span class="kw-story">story:</span> A specific behaviour
+<span class="kw-story">story:</span> Another behaviour
+<span class="kw-release">--- Release name</span>
+<span class="kw-story">story:</span> A later behaviour</pre>
       <div class="empty-actions">
         <button class="primary" id="empty-load-example">Load Example</button>
         <button id="empty-start-scratch">Start from Scratch</button>
@@ -1767,23 +1734,67 @@ function moveReleaseLine(m, fromTier, toTier) {
 
 const editor = document.getElementById('editor');
 const errorPanel = document.getElementById('error-panel');
-const editorHighlights = document.getElementById('editor-highlights');
+const editorGutter = document.getElementById('editor-gutter');
+const editorHighlightLayer = document.getElementById('editor-highlight-layer');
+
+// Line height in px — must match #editor line-height (12px font * 1.7 = 20.4px)
+const LINE_H = Math.round(12 * 1.7);
 
 function syncText() {
   suppressTextSync = true;
   editor.value = serialize(model);
   suppressTextSync = false;
-  renderHighlights([]);
+  renderEditorDecorations([]);
 }
 
 function rerender() {
   renderMap(model);
 }
 
-// Render coloured line backgrounds behind the textarea
-function renderHighlights(diagnostics) {
+// Tokenise a single line into coloured spans for the highlight layer
+function highlightLine(raw) {
+  const content = raw.trim();
+
+  // comment
+  if (content.startsWith('#')) {
+    return `<span class="hl-kw-comment">${escHtml(raw)}</span>`;
+  }
+
+  // helper: wrap keyword + colon, then rest of text
+  function kwLine(cls, kwRe, raw) {
+    const m = raw.match(new RegExp(`^(\\s*)(${kwRe})(\\s*:\\s*)(.*)$`, 'i'));
+    if (!m) return escHtml(raw);
+    return `${escHtml(m[1])}<span class="${cls}">${escHtml(m[2])}${escHtml(m[3])}</span><span class="hl-text">${escHtml(m[4])}</span>`;
+  }
+
+  if (/^\s*title\s*:/i.test(raw))    return kwLine('hl-kw-title',    'title',    raw);
+  if (/^\s*activity\s*:/i.test(raw)) return kwLine('hl-kw-activity', 'activity', raw);
+  if (/^\s*task\s*:/i.test(raw))     return kwLine('hl-kw-task',     'task',     raw);
+  if (/^\s*story\s*:/i.test(raw))    return kwLine('hl-kw-story',    'story',    raw);
+
+  // release separator  --- Name
+  if (/^\s*---/.test(raw)) {
+    const m = raw.match(/^(\s*)(---+)(\s*)(.*)$/);
+    if (m) return `${escHtml(m[1])}<span class="hl-kw-release">${escHtml(m[2])}${escHtml(m[3])}${escHtml(m[4])}</span>`;
+  }
+
+  // blank or unrecognised — plain text
+  return `<span class="hl-text">${escHtml(raw)}</span>`;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderSyntax(text) {
+  const lines = text.split('\n');
+  editorHighlightLayer.innerHTML = lines.map(highlightLine).join('\n');
+  editorHighlightLayer.scrollTop = editor.scrollTop;
+}
+
+// Render coloured gutter marks — one per source line
+function renderGutter(diagnostics) {
   const lines = editor.value.split('\n');
-  // Build a map: lineNo (1-based) → worst severity
   const lineMap = new Map();
   for (const d of diagnostics) {
     if (!d.line) continue;
@@ -1792,30 +1803,30 @@ function renderHighlights(diagnostics) {
       lineMap.set(d.line, d.severity);
     }
   }
-
-  const parts = lines.map((line, i) => {
+  editorGutter.innerHTML = lines.map((_, i) => {
     const sev = lineMap.get(i + 1);
-    const escaped = line
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;') || ' '; // need at least a space so empty lines have height
-    if (sev === SEV.ERROR)   return `<span class="hl-line-error">${escaped}</span>`;
-    if (sev === SEV.WARN) return `<span class="hl-line-warning">${escaped}</span>`;
-    return `<span>${escaped}</span>`;
-  });
-  editorHighlights.innerHTML = parts.join('\n');
+    const cls = sev === SEV.ERROR ? 'gutter-error' : sev === SEV.WARN ? 'gutter-warning' : 'gutter-none';
+    return `<div class="gutter-mark ${cls}" style="height:${LINE_H}px"></div>`;
+  }).join('');
+  editorGutter.scrollTop = editor.scrollTop;
 }
 
-// Sync highlight scroll position with textarea
+function renderEditorDecorations(diagnostics) {
+  renderSyntax(editor.value);
+  renderGutter(diagnostics);
+}
+
+// Keep overlay + gutter scroll in sync with editor
 editor.addEventListener('scroll', () => {
-  editorHighlights.scrollTop = editor.scrollTop;
+  editorGutter.scrollTop = editor.scrollTop;
+  editorHighlightLayer.scrollTop = editor.scrollTop;
 });
 
 function applyText(text) {
   const parsed = parse(text);
   const { diagnostics } = parsed;
 
-  renderHighlights(diagnostics);
+  renderEditorDecorations(diagnostics);
 
   const errors   = diagnostics.filter(d => d.severity === SEV.ERROR);
   const warnings = diagnostics.filter(d => d.severity === SEV.WARN);
