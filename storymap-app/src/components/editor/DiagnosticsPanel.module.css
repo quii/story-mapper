@@ -1,0 +1,59 @@
+.panel {
+  border-top: 1px solid #e5e1db;
+  background: #fefefe;
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid #f0ece6;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.row:disabled {
+  cursor: default;
+}
+
+.row:not(:disabled):hover {
+  background: #f5f2ed;
+}
+
+.error .badge { background: #dc2626; color: white; }
+.warning .badge { background: #d97706; color: white; }
+
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.lineNo {
+  color: #888;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.message {
+  color: #333;
+  flex: 1;
+}
+
+.suggestion {
+  color: #2563eb;
+  font-style: italic;
+  flex-shrink: 0;
+}

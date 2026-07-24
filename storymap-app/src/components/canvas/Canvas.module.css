@@ -1,0 +1,386 @@
+.canvas {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-width: max-content;
+}
+
+.mapTitle {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a18;
+  margin-bottom: 16px;
+  outline: none;
+  cursor: text;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.mapTitle:hover, .mapTitle:focus {
+  background: #f0ece6;
+}
+
+/* ── Single unified grid ──────────────────────────────
+   All rows (activity, task, stories, releases) share
+   the same column definitions, so everything lines up. */
+.grid {
+  display: grid;
+  gap: 4px;
+  align-items: start;
+}
+
+/* ── Activity row ───────────────────────────────────── */
+.activityCell {
+  /* spans N task columns — set inline */
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.activityCard {
+  background: #1a1a18;
+  color: #fff;
+  border-radius: 8px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+.activityName {
+  flex: 1;
+  outline: none;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.addActivityCell {
+  display: flex;
+  align-items: flex-end; /* align with task row below */
+  padding-bottom: 0;
+  height: 40px;
+}
+
+.addActivityBtn {
+  background: none;
+  border: 1px dashed #c8c4be;
+  color: #999;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  height: 36px;
+  align-self: flex-end;
+}
+
+.addActivityBtn:hover { background: #f0ece6; color: #555; }
+
+/* ── Task row ───────────────────────────────────────── */
+.taskCell {
+  background: #e8e4de;
+  border-radius: 6px;
+  width: 160px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  cursor: grab;
+  position: relative;
+}
+
+.taskCell:active { cursor: grabbing; }
+
+.taskCell.dragOverTask {
+  box-shadow: inset 0 0 0 2px #2563eb;
+}
+
+.taskCell.phantomTask {
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+
+.taskName {
+  flex: 1;
+  outline: none;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.addTaskCell {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+/* Show + task button when hovering anywhere on the grid */
+.grid:hover .addTaskCell { opacity: 1; }
+
+.addTaskBtn {
+  background: none;
+  border: 1px dashed #c8c4be;
+  color: #999;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addTaskBtn:hover { background: #f0ece6; color: #555; }
+
+/* ── Shared remove button ───────────────────────────── */
+.removeBtn {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.activityCard:hover .removeBtn,
+.taskCell:hover .removeBtn {
+  opacity: 0.6;
+}
+
+.removeBtn:hover { opacity: 1 !important; }
+
+/* ── Story cells ────────────────────────────────────── */
+.storyCell {
+  width: 160px;
+  min-height: 52px;
+  position: relative;
+  border-radius: 6px;
+}
+
+.storyCell.dragOverCell {
+  outline: 2px dashed #2563eb;
+  outline-offset: -2px;
+}
+
+.storyCard {
+  background: #fff;
+  border: 1px solid #d0ccc6;
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: 48px;
+  cursor: grab;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.storyCard:active { cursor: grabbing; }
+
+.storyText {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.45;
+  outline: none;
+  word-break: break-word;
+  cursor: text;
+}
+
+.removeStoryBtn {
+  background: none;
+  border: none;
+  color: #888;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+
+.storyCell:hover .removeStoryBtn { opacity: 0.5; }
+.removeStoryBtn:hover { opacity: 1 !important; color: #dc2626; }
+
+.addStoryCell {
+  width: 160px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addStoryBtn {
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 1px dashed #c8c4be;
+  border-radius: 50%;
+  color: #bbb;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+  line-height: 1;
+  padding: 0;
+}
+
+.grid:hover .addStoryBtn { opacity: 1; }
+.addStoryBtn:hover { background: #f0ece6; color: #555; border-color: #999; }
+
+/* ── Release drop slots (empty rows between stories) ─── */
+.releaseSlot {
+  height: 4px;
+  border-radius: 2px;
+  transition: height 0.12s, background 0.12s;
+}
+
+/* Expand all slots when a release drag is active */
+.relDragActive .releaseSlot {
+  height: 20px;
+  background: #f0ece6;
+  outline: 2px dashed #c8c4be;
+  outline-offset: -2px;
+}
+
+.releaseSlot.releaseSlotOver {
+  background: #dbeafe !important;
+  outline-color: #2563eb !important;
+}
+
+/* Final slot always shows the + release button */
+.releaseSlotFinal {
+  height: auto;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  background: none !important;
+  outline: none !important;
+}
+
+.relDragActive .releaseSlotFinal {
+  height: auto;
+  padding: 6px 0;
+  outline: 2px dashed #c8c4be !important;
+  outline-offset: -2px;
+  background: #f0ece6 !important;
+}
+
+.releaseSlotFinal.releaseSlotOver {
+  background: #dbeafe !important;
+  outline-color: #2563eb !important;
+}
+
+/* ── Release band ───────────────────────────────────── */
+.releaseBand {
+  /* grid-column set inline to span all cols */
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: height 0.1s, background 0.1s, outline 0.1s;
+}
+
+/* When any release drag is active, expand all bands so they're easy to hit */
+.relDragActive .releaseBand {
+  height: 44px;
+  outline: 2px dashed #c8c4be;
+  outline-offset: -2px;
+}
+
+.releaseBand.relDragOver {
+  background: #e8e4de;
+  outline-color: #2563eb;
+}
+
+.releaseGrip {
+  color: var(--release-color);
+  cursor: grab;
+  font-size: 14px;
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.releaseGrip:active { cursor: grabbing; }
+
+.releaseLabel {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 40px;
+  text-align: center;
+  outline: none;
+  cursor: text;
+}
+
+.releaseLine {
+  flex: 1;
+  height: 2px;
+  opacity: 0.35;
+  border-radius: 1px;
+}
+
+.removeReleaseBtn {
+  background: none;
+  border: none;
+  color: #888;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.releaseBand:hover .removeReleaseBtn { opacity: 0.6; }
+.removeReleaseBtn:hover { opacity: 1 !important; color: #dc2626; }
+
+.addReleaseBtn {
+  background: none;
+  border: 1px dashed #c8c4be;
+  color: #999;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.addReleaseBtn:hover { background: #f0ece6; color: #555; }
+
+/* ── Release drag ghost ─────────────────────────────── */
+.releaseGhost {
+  position: fixed;
+  pointer-events: none;
+  background: #1a1a18;
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  z-index: 9999;
+  opacity: 0.85;
+}

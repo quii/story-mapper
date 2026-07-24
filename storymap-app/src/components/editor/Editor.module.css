@@ -1,0 +1,66 @@
+.editorPane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editorArea {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.gutter {
+  width: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 10px 0;
+  background: #f7f7f5;
+  border-right: 1px solid #e5e1db;
+  text-align: right;
+  user-select: none;
+}
+
+.gutterLine {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding-right: 6px;
+  color: #bbb;
+  height: calc(13px * 1.6);
+}
+
+.editorScroll {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.highlightWrapper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  caret-color: #1a1a18;
+  color: transparent;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+}

@@ -1,0 +1,125 @@
+import type { StoryMap } from '../../core/types';
+import { allTasks, releaseAfterRow, storyAtRow, totalRows } from '../../core/layout';
+import { releaseColor } from '../../core/palette';
+
+const PAD = 24;
+const CARD_W = 160;
+const GAP = 4;
+const ACT_H = 40;
+const TASK_H = 36;
+const STORY_H = 52;
+const RELEASE_H = 28;
+const TITLE_H = 44;
+
+function wrapText(str: string, maxLen = 22): string[] {
+  const words = str.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (cur.length + w.length + (cur ? 1 : 0) > maxLen) {
+      if (cur) lines.push(cur);
+      cur = w;
+    } else {
+      cur = cur ? cur + ' ' + w : w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function esc(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function svgText(x: number, y: number, text: string, attrs = '') {
+  return `<text x="${x}" y="${y}" ${attrs}>${esc(text)}</text>`;
+}
+
+export function exportSvg(model: StoryMap): void {
+  const { activities, releases } = model;
+  const flatTasks = allTasks(activities);
+  const numCols = flatTasks.length;
+  const numRows = totalRows(activities, releases);
+
+  const titleH = model.title ? TITLE_H : 0;
+  const totalW = PAD * 2 + numCols * CARD_W + (numCols - 1) * GAP;
+
+  // Calculate height
+  let totalH = PAD * 2 + titleH + ACT_H + GAP + TASK_H + GAP;
+  for (let row = 0; row < numRows; row++) {
+    totalH += STORY_H + GAP;
+    if (releaseAfterRow(releases, row)) totalH += RELEASE_H + GAP;
+  }
+
+  const parts: string[] = [];
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}">`);
+  parts.push(`<rect width="${totalW}" height="${totalH}" fill="#f7f7f5"/>`);
+
+  let y = PAD;
+
+  if (model.title) {
+    parts.push(svgText(PAD, y + 28, model.title, `font-size="20" font-weight="700" fill="#1a1a18" font-family="sans-serif"`));
+    y += TITLE_H;
+  }
+
+  // Activity cards
+  let colOffset = 0;
+  activities.forEach((act) => {
+    const taskCount = Math.max(act.tasks.length, 1);
+    const actW = taskCount * CARD_W + (taskCount - 1) * GAP;
+    const x = PAD + colOffset;
+    parts.push(`<rect x="${x}" y="${y}" width="${actW}" height="${ACT_H}" rx="8" fill="#1a1a18"/>`);
+    parts.push(svgText(x + actW / 2, y + 25, act.name, `font-size="13" font-weight="600" fill="#fff" font-family="sans-serif" text-anchor="middle"`));
+    colOffset += actW + GAP;
+  });
+  y += ACT_H + GAP;
+
+  // Task cards
+  flatTasks.forEach(({ task }, ci) => {
+    const x = PAD + ci * (CARD_W + GAP);
+    parts.push(`<rect x="${x}" y="${y}" width="${CARD_W}" height="${TASK_H}" rx="6" fill="#e8e4de"/>`);
+    parts.push(svgText(x + CARD_W / 2, y + 22, task.name, `font-size="12" font-weight="500" fill="#1a1a18" font-family="sans-serif" text-anchor="middle"`));
+  });
+  y += TASK_H + GAP;
+
+  // Story rows
+  for (let row = 0; row < numRows; row++) {
+    flatTasks.forEach(({ task }, ci) => {
+      const story = storyAtRow(task, row);
+      const x = PAD + ci * (CARD_W + GAP);
+      parts.push(`<rect x="${x}" y="${y}" width="${CARD_W}" height="${STORY_H}" rx="6" fill="#fff" stroke="#d0ccc6" stroke-width="1"/>`);
+      if (story) {
+        const wrapped = wrapText(story.text);
+        wrapped.forEach((line, li) => {
+          parts.push(svgText(x + 8, y + 18 + li * 16, line, `font-size="11" fill="#1a1a18" font-family="sans-serif"`));
+        });
+      }
+    });
+    y += STORY_H + GAP;
+
+    const release = releaseAfterRow(releases, row);
+    if (release) {
+      const color = releaseColor(release.tier - 1);
+      const label = release.name ?? '';
+      const labelW = Math.max(label.length * 7 + 20, 60);
+      parts.push(`<rect x="${PAD}" y="${y}" width="${labelW}" height="${RELEASE_H}" rx="12" fill="${color}"/>`);
+      parts.push(svgText(PAD + labelW / 2, y + 18, label.toUpperCase(), `font-size="10" font-weight="600" fill="#fff" font-family="sans-serif" text-anchor="middle"`));
+      const lineX = PAD + labelW + 8;
+      const lineW = totalW - PAD - lineX;
+      if (lineW > 0) {
+        parts.push(`<rect x="${lineX}" y="${y + RELEASE_H / 2}" width="${lineW}" height="2" fill="${color}" opacity="0.4"/>`);
+      }
+      y += RELEASE_H + GAP;
+    }
+  }
+
+  parts.push('</svg>');
+  const svg = parts.join('\n');
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${model.title ?? 'storymap'}.svg`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

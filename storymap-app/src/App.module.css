@@ -1,0 +1,38 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editorPane {
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 1px solid #e5e1db;
+  display: flex;
+  flex-direction: column;
+}
+
+.resizeHandle {
+  width: 6px;
+  flex-shrink: 0;
+  background: transparent;
+  cursor: col-resize;
+  transition: background 0.1s;
+}
+
+.resizeHandle:hover {
+  background: #d0ccc6;
+}
+
+.canvasPane {
+  flex: 1;
+  overflow: auto;
+  background: #f7f7f5;
+}

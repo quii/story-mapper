@@ -1,0 +1,52 @@
+.toolbar {
+  height: 48px;
+  background: #fff;
+  border-bottom: 1px solid #e5e1db;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1a1a18;
+  margin-right: auto;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  background: none;
+  border: 1px solid #d0ccc6;
+  color: #333;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn:hover {
+  background: #f5f2ed;
+  border-color: #999;
+}
+
+.toast {
+  position: absolute;
+  right: 16px;
+  top: 52px;
+  background: #1a1a18;
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  z-index: 100;
+  pointer-events: none;
+}
