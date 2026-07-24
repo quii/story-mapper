@@ -108,40 +108,149 @@
       border: none;
       outline: none;
       resize: none;
-      background: var(--surface);
       color: var(--text);
       overflow-y: auto;
       tab-size: 2;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
     }
     #editor::selection { background: #c8d8f0; }
 
     .error-panel {
-      border-top: 1px solid var(--error);
-      background: var(--error-bg);
-      padding: 8px 14px;
+      border-top: 2px solid var(--error);
+      background: var(--surface);
       font-size: 11px;
-      color: var(--error);
-      max-height: 100px;
+      max-height: 200px;
       overflow-y: auto;
       flex-shrink: 0;
     }
     .error-panel.hidden { display: none; }
-    .error-line { padding: 1px 0; font-family: var(--font-mono); }
 
-    .format-hint {
-      padding: 8px 14px;
-      font-size: 11px;
-      color: var(--text-muted);
-      border-top: 1px solid var(--border);
-      line-height: 1.9;
+    .diag-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 5px 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.08s;
+      line-height: 1.4;
+    }
+    .diag-row:last-child { border-bottom: none; }
+    .diag-row:hover { background: var(--bg); }
+
+    .diag-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 3px;
       flex-shrink: 0;
     }
-    .format-hint code {
+    .diag-badge.error   { background: #fde8e6; color: var(--error); }
+    .diag-badge.warning { background: #fef3e2; color: #b06000; }
+
+    .diag-line-no {
       font-family: var(--font-mono);
       font-size: 10px;
-      background: var(--bg);
-      padding: 1px 4px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      min-width: 28px;
+    }
+
+    .diag-message { color: var(--text); flex: 1; }
+
+    .diag-suggestion {
+      font-style: italic;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* Editor line highlight overlay */
+    .editor-wrap {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #editor-highlights {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      overflow: hidden;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
+      box-sizing: border-box;
+    }
+
+    .hl-line-error   { background: rgba(192, 57, 43, 0.10); display: block; margin: 0 -14px; padding: 0 14px; }
+    .hl-line-warning { background: rgba(176, 96,  0, 0.08); display: block; margin: 0 -14px; padding: 0 14px; }
+
+    .format-hint {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1;
+    }
+    .format-hint .hint-line {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 3px 0;
+    }
+    .format-hint .hint-indent {
+      display: inline-flex;
+      gap: 0;
+    }
+    .format-hint .hint-pip {
+      width: 16px;
+      border-left: 1px dashed #d0ccc6;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    .format-hint .hint-kw {
+      padding: 2px 6px;
       border-radius: 3px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .format-hint .hint-kw.kw-a { color: #1a1a18; font-weight: 700; background: #e8e4de; }
+    .format-hint .hint-kw.kw-t { color: #4a6fa5; font-weight: 600; background: #edf2fa; }
+    .format-hint .hint-kw.kw-s { color: #2e7d5e;                   background: #edf7f3; }
+    .format-hint .hint-kw.kw-r { color: #c0392b;                   background: #fdf0ee; }
+    .format-hint .hint-desc {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: 6px;
+    }
+    .format-hint .hint-tab-tip {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    .format-hint kbd {
+      font-family: var(--font-ui);
+      font-size: 9px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 4px;
+      color: var(--text);
     }
 
     /* ── Resize handle ── */
@@ -179,14 +288,15 @@
     }
 
     /* ── Backbone ── */
-    .backbone { display: flex; gap: 4px; margin-bottom: 4px; align-items: flex-end; }
+    .backbone { display: flex; gap: 4px; margin-bottom: 4px; align-items: stretch; }
 
-    .activity-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+    .activity-group { display: flex; flex-direction: column; gap: 4px; }
 
     .activity-header {
+      position: relative;
+      flex: 1;
       display: flex;
-      align-items: stretch;
-      gap: 2px;
+      flex-direction: column;
     }
 
     .activity-card {
@@ -198,10 +308,14 @@
       font-size: 13px;
       letter-spacing: 0.01em;
       text-align: center;
-      flex: 1;
       cursor: text;
       outline: none;
-      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      box-sizing: border-box;
+      flex: 1;
     }
     .activity-card:focus {
       background: #333;
@@ -226,7 +340,7 @@
     }
     .add-activity-btn:hover { color: var(--text); border-color: var(--text-muted); }
 
-    .tasks-row { display: flex; gap: 4px; }
+
 
     /* ── Task ── */
     .task-col {
@@ -237,10 +351,13 @@
       flex-shrink: 0;
     }
 
+    .tasks-row { display: flex; gap: 4px; align-items: stretch; }
+
     .task-header {
+      position: relative;
+      flex: 1;
       display: flex;
-      align-items: stretch;
-      gap: 2px;
+      flex-direction: column;
     }
 
     .task-card {
@@ -251,24 +368,32 @@
       font-size: 12px;
       text-align: center;
       min-height: 34px;
-      flex: 1;
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: text;
       outline: none;
       line-height: 1.3;
+      flex: 1;
+      box-sizing: border-box;
+      box-sizing: border-box;
     }
     .task-card:focus {
       background: #d8d4ce;
       box-shadow: inset 0 0 0 2px var(--accent);
     }
 
-    /* ── Icon buttons (remove, add-task) ── */
+    /* ── Icon buttons — float over their parent, don't affect layout width ── */
     .icon-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
       background: transparent;
       border: none;
-      padding: 0 4px;
+      padding: 0;
       font-size: 13px;
       line-height: 1;
       cursor: pointer;
@@ -277,23 +402,25 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
       opacity: 0;
       transition: opacity 0.12s, color 0.12s;
+      z-index: 2;
     }
     .icon-btn:hover { color: var(--error); opacity: 1 !important; background: var(--error-bg); }
 
-    .activity-group:hover > .activity-header .icon-btn,
-    .task-col:hover > .task-header .icon-btn { opacity: 0.5; }
+    .activity-header:hover .icon-btn,
+    .task-header:hover .icon-btn { opacity: 0.6; }
 
     .add-task-btn {
-      width: 160px;
+      width: 100%;
       padding: 5px;
       border-style: dashed;
       font-size: 12px;
       color: var(--text-muted);
       text-align: center;
       border-radius: 4px;
+      margin-top: 2px;
+    }
       flex-shrink: 0;
     }
     .add-task-btn:hover { color: var(--text); border-color: var(--text-muted); }
@@ -302,9 +429,10 @@
     .stories-grid {
       display: grid;
       gap: 4px;
+      align-items: stretch;
     }
 
-    .story-cell { width: 160px; position: relative; }
+    .story-cell { width: 160px; position: relative; display: flex; flex-direction: column; }
 
     .story-card {
       background: var(--story-bg);
@@ -320,6 +448,8 @@
       outline: none;
       width: 100%;
       word-break: break-word;
+      flex: 1;
+      box-sizing: border-box;
     }
     .story-card:focus {
       box-shadow: 0 0 0 2px var(--accent);
@@ -463,11 +593,56 @@
       justify-content: center;
       height: 100%;
       color: var(--text-muted);
-      gap: 8px;
+      gap: 16px;
       text-align: center;
-      padding: 40px;
+      padding: 48px 40px;
     }
-    .empty-state p { font-size: 14px; }
+
+    .empty-state h2 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 340px;
+      margin: 0;
+    }
+
+    .empty-state .empty-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    .empty-state .syntax-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.9;
+      text-align: left;
+      color: var(--text);
+      max-width: 320px;
+      width: 100%;
+      white-space: pre;
+      margin: 0;
+    }
+
+    .empty-state .syntax-block .kw-activity { color: #1a1a18; font-weight: 700; }
+    .empty-state .syntax-block .kw-task     { color: #4a6fa5; font-weight: 600; }
+    .empty-state .syntax-block .kw-story    { color: #2e7d5e; }
+    .empty-state .syntax-block .kw-release  { color: #c0392b; }
+    .empty-state .syntax-block .kw-comment  { color: #aaa; font-style: italic; }
+
     .empty-state code {
       font-family: var(--font-mono);
       font-size: 12px;
@@ -475,13 +650,38 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+
+    /* ── Share toast ── */
+    #share-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: #1a1a18;
+      color: #fff;
+      font-size: 13px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+    #share-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   </style>
 </head>
 <body>
 
 <div id="release-ghost"></div>
+<div id="share-toast"></div>
 <div class="toolbar">
   <div class="toolbar-title">Story Map Editor <span>.storymap</span></div>
+  <button id="btn-share">Share</button>
   <button id="btn-example">Load Example</button>
   <button id="btn-export-svg" class="primary">Export SVG</button>
   <button id="btn-export-html" class="primary">Export HTML</button>
@@ -490,14 +690,28 @@
 <div class="main">
   <div class="editor-pane" id="editor-pane">
     <div class="pane-header">Source</div>
-    <textarea id="editor" spellcheck="false" placeholder="Start typing..."></textarea>
+    <div class="editor-wrap">
+      <div id="editor-highlights" aria-hidden="true"></div>
+      <textarea id="editor" spellcheck="false" style="background:transparent;position:relative;z-index:1;"></textarea>
+    </div>
     <div class="error-panel hidden" id="error-panel"></div>
     <div class="format-hint">
-      <code>title:</code> &nbsp;
-      <code>activity:</code> &nbsp;
-      <code>  task:</code><br>
-      <code>    story:</code> &nbsp;
-      <code>    --- Release name</code>
+      <div class="hint-line">
+        <span class="hint-kw kw-a">activity: Name</span><span class="hint-desc">column group</span>
+      </div>
+      <div class="hint-line">
+        <span class="hint-indent"><span class="hint-pip"></span></span>
+        <span class="hint-kw kw-t">task: Name</span><span class="hint-desc">step within activity</span>
+      </div>
+      <div class="hint-line">
+        <span class="hint-indent"><span class="hint-pip"></span><span class="hint-pip"></span></span>
+        <span class="hint-kw kw-s">story: Text</span><span class="hint-desc">a behaviour</span>
+      </div>
+      <div class="hint-line">
+        <span class="hint-indent"><span class="hint-pip"></span><span class="hint-pip"></span></span>
+        <span class="hint-kw kw-r">--- Release</span><span class="hint-desc">release line</span>
+      </div>
+      <div class="hint-tab-tip"><kbd>Tab</kbd> to indent &nbsp; <kbd>Shift+Tab</kbd> to dedent &nbsp; <kbd>Enter</kbd> keeps indent</div>
     </div>
   </div>
 
@@ -539,58 +753,246 @@ let suppressTextSync = false; // prevent echo loop
 // PARSER  (text → model)
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// VALIDATOR
+// ─────────────────────────────────────────────
+
+/*
+ * Diagnostic severity levels.
+ */
+const SEV = { ERROR: 'error', WARN: 'warning' };
+
+/*
+ * Known keywords at each indent level, plus common misspellings/variants
+ * used by humans and AI models.
+ */
+const KEYWORDS = ['title', 'activity', 'task', 'story'];
+
+// Returns the closest keyword match if within edit-distance 2, else null.
+function closestKeyword(word) {
+  const w = word.toLowerCase();
+  if (KEYWORDS.includes(w)) return null; // exact match, no suggestion needed
+  let best = null, bestDist = 3;
+  for (const kw of KEYWORDS) {
+    const d = editDistance(w, kw);
+    if (d < bestDist) { bestDist = d; best = kw; }
+  }
+  return best;
+}
+
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => Array.from({ length: n + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+/*
+ * parse() — leniently builds the model while emitting typed diagnostics.
+ * Returns { title, activities, diagnostics }
+ * diagnostics: [{ severity, line, message, suggestion? }]
+ */
 function parse(text) {
   const lines = text.split('\n');
-  const errors = [];
+  const diagnostics = [];
   let title = null;
   const activities = [];
   let curAct = null, curTask = null;
 
+  // ── Pass 1: detect global formatting issues ──
+
+  // Tab indentation
+  const tabLines = lines.map((l, i) => ({ l, i })).filter(({ l }) => /^\t/.test(l));
+  for (const { i } of tabLines) {
+    diagnostics.push({
+      severity: SEV.ERROR,
+      line: i + 1,
+      message: 'Tab used for indentation — use spaces instead.',
+      suggestion: 'Replace leading tabs with 2 spaces per level.',
+    });
+  }
+
+  // Detect dominant indent unit (2 or 4 spaces) and flag inconsistent lines
+  const indentedLines = lines.filter(l => /^ +/.test(l));
+  const indentSizes = indentedLines.map(l => l.match(/^ +/)[0].length);
+  if (indentSizes.length > 0) {
+    const gcd = indentSizes.reduce((a, b) => b === 0 ? a : gcd2(a, b));
+    const unit = gcd > 0 ? gcd : 2;
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^ +/);
+      if (!m) continue;
+      if (m[0].length % unit !== 0) {
+        diagnostics.push({
+          severity: SEV.WARN,
+          line: i + 1,
+          message: `Inconsistent indentation (${m[0].length} spaces; expected a multiple of ${unit}).`,
+        });
+      }
+    }
+  }
+
+  // ── Pass 2: parse line-by-line ──
+
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i], lineNo = i + 1;
+    const raw = lines[i];
+    const lineNo = i + 1;
+
+    // skip blank and comment lines
     if (raw.trim() === '' || raw.trim().startsWith('#')) continue;
+    // skip lines already flagged as tab-indented (can't parse them reliably)
+    if (/^\t/.test(raw)) continue;
+
     const indent = raw.length - raw.trimStart().length;
     const content = raw.trim();
 
+    // ── title ──
     if (/^title\s*:/i.test(content)) {
-      if (indent !== 0) { errors.push({ line: lineNo, message: '`title` must not be indented' }); continue; }
-      title = content.replace(/^title\s*:\s*/i, '').trim();
+      if (indent !== 0) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`title` must not be indented.', suggestion: 'Remove leading spaces.' });
+        continue;
+      }
+      const val = content.replace(/^title\s*:\s*/i, '').trim();
+      if (!val) diagnostics.push({ severity: SEV.WARN, line: lineNo, message: '`title` has no value.' });
+      else title = val;
       continue;
     }
+
+    // ── activity ──
     if (/^activity\s*:/i.test(content)) {
-      if (indent !== 0) { errors.push({ line: lineNo, message: '`activity` must not be indented' }); continue; }
+      if (indent !== 0) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`activity` must not be indented.', suggestion: 'Remove leading spaces.' });
+        continue;
+      }
       const name = content.replace(/^activity\s*:\s*/i, '').trim();
-      if (!name) errors.push({ line: lineNo, message: '`activity` has no name' });
+      if (!name) diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`activity` has no name.' });
       curAct = { name: name || '(unnamed)', tasks: [] };
       curTask = null;
       activities.push(curAct);
       continue;
     }
+
+    // ── task ──
     if (/^task\s*:/i.test(content)) {
-      if (!curAct) { errors.push({ line: lineNo, message: '`task` must be inside an `activity`' }); continue; }
-      if (indent === 0) { errors.push({ line: lineNo, message: '`task` must be indented' }); continue; }
+      if (!curAct) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`task` must be inside an `activity`.', suggestion: 'Add an `activity:` line above this.' });
+        continue;
+      }
+      if (indent === 0) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`task` must be indented under its `activity`.', suggestion: 'Indent with 2 spaces.' });
+        continue;
+      }
       const name = content.replace(/^task\s*:\s*/i, '').trim();
+      if (!name) diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`task` has no name.' });
       curTask = { name: name || '(unnamed)', items: [] };
       curAct.tasks.push(curTask);
       continue;
     }
+
+    // ── story ──
     if (/^story\s*:/i.test(content)) {
-      if (!curTask) { errors.push({ line: lineNo, message: '`story` must be inside a `task`' }); continue; }
-      const text2 = content.replace(/^story\s*:\s*/i, '').trim();
-      curTask.items.push({ type: 'story', text: text2 || '(empty)' });
+      if (!curTask) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`story` must be inside a `task`.', suggestion: 'Add a `task:` line above this.' });
+        continue;
+      }
+      if (indent < 2) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: '`story` must be indented under its `task`.', suggestion: 'Indent with 4 spaces (2 per level).' });
+        continue;
+      }
+      const val = content.replace(/^story\s*:\s*/i, '').trim();
+      if (!val) diagnostics.push({ severity: SEV.WARN, line: lineNo, message: '`story` has no text.' });
+      else if (val.length > 120) diagnostics.push({ severity: SEV.WARN, line: lineNo, message: `Story text is very long (${val.length} chars) and may not render well.`, suggestion: 'Keep stories under 120 characters.' });
+      curTask.items.push({ type: 'story', text: val || '(empty)' });
       continue;
     }
+
+    // ── release separator ──
     if (/^---/.test(content)) {
-      if (!curTask) { errors.push({ line: lineNo, message: 'Release separator must be inside a `task`' }); continue; }
+      if (!curTask) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: 'Release separator `---` must be inside a `task`.', suggestion: 'Indent with 4 spaces under a `task:`.' });
+        continue;
+      }
+      if (indent < 2) {
+        diagnostics.push({ severity: SEV.ERROR, line: lineNo, message: 'Release separator must be indented under its `task`.', suggestion: 'Indent with 4 spaces.' });
+        continue;
+      }
       const name = content.replace(/^-+\s*/, '').trim() || null;
       curTask.items.push({ type: 'release', name });
       continue;
     }
-    errors.push({ line: lineNo, message: `Unrecognised: "${content.split(/[\s:]/)[0]}"` });
+
+    // ── unknown keyword — try to suggest ──
+    const word = content.split(/[\s:]/)[0];
+    const suggestion = closestKeyword(word);
+
+    // Extra: detect plural forms specifically (AI loves these)
+    const pluralMap = { activities: 'activity', tasks: 'task', stories: 'story', releases: 'release' };
+    if (pluralMap[word.toLowerCase()]) {
+      diagnostics.push({
+        severity: SEV.ERROR,
+        line: lineNo,
+        message: `Unknown keyword \`${word}\` — did you use the plural form?`,
+        suggestion: `Use \`${pluralMap[word.toLowerCase()]}:\` instead.`,
+      });
+    } else if (suggestion) {
+      diagnostics.push({
+        severity: SEV.ERROR,
+        line: lineNo,
+        message: `Unknown keyword \`${word}\`.`,
+        suggestion: `Did you mean \`${suggestion}:\`?`,
+      });
+    } else {
+      diagnostics.push({
+        severity: SEV.ERROR,
+        line: lineNo,
+        message: `Unknown keyword \`${word}\`.`,
+      });
+    }
   }
 
-  return { title, activities, errors };
+  // ── Pass 3: semantic / structural warnings ──
+
+  if (activities.length === 0 && text.trim().length > 0) {
+    diagnostics.push({ severity: SEV.WARN, line: null, message: 'No activities found. Add at least one `activity:` line.' });
+  }
+
+  for (const act of activities) {
+    if (act.tasks.length === 0) {
+      diagnostics.push({ severity: SEV.WARN, line: null, message: `Activity \`${act.name}\` has no tasks.`, suggestion: 'Add at least one `task:` under this activity.' });
+    }
+    for (const task of act.tasks) {
+      const stories = task.items.filter(i => i.type === 'story');
+      if (stories.length === 0) {
+        diagnostics.push({ severity: SEV.WARN, line: null, message: `Task \`${task.name}\` has no stories.`, suggestion: 'Add at least one `story:` under this task.' });
+      }
+    }
+  }
+
+  // Warn about release names used in some tasks but not all (misaligned lines)
+  const allTaskList = [];
+  for (const act of activities) for (const t of act.tasks) allTaskList.push(t);
+  if (allTaskList.length > 1) {
+    // Count how many separators each task has
+    const sepCounts = allTaskList.map(t => t.items.filter(i => i.type === 'release').length);
+    const maxSeps = Math.max(...sepCounts);
+    if (maxSeps > 0) {
+      const inconsistent = allTaskList.filter((t, i) => sepCounts[i] < maxSeps);
+      if (inconsistent.length > 0) {
+        diagnostics.push({
+          severity: SEV.WARN,
+          line: null,
+          message: `${inconsistent.length} task(s) have fewer release separators than others: ${inconsistent.map(t => `\`${t.name}\``).join(', ')}.`,
+          suggestion: 'Release lines only span columns that have a separator at the same tier. Add `---` to missing tasks.',
+        });
+      }
+    }
+  }
+
+  return { title, activities, diagnostics };
 }
+
+function gcd2(a, b) { return b === 0 ? a : gcd2(b, a % b); }
 
 // ─────────────────────────────────────────────
 // SERIALIZER  (model → text)
@@ -660,9 +1062,31 @@ function renderMap(m) {
 
   if (m.activities.length === 0) {
     container.innerHTML = `<div class="empty-state">
-      <p>Nothing here yet.</p>
-      <p>Type in the editor or click <strong>Load Example</strong>.</p>
+      <h2>Story Map Editor</h2>
+      <p>A story map organises work as <strong>activities</strong> across the top, <strong>tasks</strong> underneath, and <strong>stories</strong> in columns below. Draw horizontal <strong>release lines</strong> to slice across them.</p>
+      <pre class="syntax-block"><span class="kw-comment"># each level is 2 spaces deeper</span>
+<span class="kw-activity">activity:</span> A user goal
+  <span class="kw-task">task:</span> A step to achieve it
+    <span class="kw-story">story:</span> A specific behaviour
+    <span class="kw-story">story:</span> Another behaviour
+    <span class="kw-release">--- Release name</span>
+    <span class="kw-story">story:</span> A later behaviour</pre>
+      <div class="empty-actions">
+        <button class="primary" id="empty-load-example">Load Example</button>
+        <button id="empty-start-scratch">Start from Scratch</button>
+      </div>
+      <p style="font-size:11px">Or just start typing in the editor on the left.</p>
     </div>`;
+    document.getElementById('empty-load-example')?.addEventListener('click', () => {
+      editor.value = EXAMPLE;
+      applyText(EXAMPLE);
+    });
+    document.getElementById('empty-start-scratch')?.addEventListener('click', () => {
+      const starter = `title: My Story Map\n\nactivity: First Activity\n  task: First Task\n    story: First story\n`;
+      editor.value = starter;
+      applyText(starter);
+      editor.focus();
+    });
     return;
   }
 
@@ -813,11 +1237,12 @@ function renderMap(m) {
       });
 
       tr.appendChild(tc);
-      // stories are added to tc below in the grid pass
       taskColRefs.set(`${ai}-${ti}`, tc);
     }
 
-    // Add task button
+    ag.appendChild(tr);
+
+    // Add task button sits BELOW the tasks-row, not inside it
     const addTask = document.createElement('button');
     addTask.className = 'add-task-btn';
     addTask.textContent = '+ task';
@@ -825,9 +1250,7 @@ function renderMap(m) {
       act.tasks.push({ name: 'New task', items: [] });
       syncText(); rerender();
     });
-    tr.appendChild(addTask);
-
-    ag.appendChild(tr);
+    ag.appendChild(addTask);
     backbone.appendChild(ag);
   }
 
@@ -1344,35 +1767,161 @@ function moveReleaseLine(m, fromTier, toTier) {
 
 const editor = document.getElementById('editor');
 const errorPanel = document.getElementById('error-panel');
+const editorHighlights = document.getElementById('editor-highlights');
 
 function syncText() {
   suppressTextSync = true;
   editor.value = serialize(model);
   suppressTextSync = false;
+  renderHighlights([]);
 }
 
 function rerender() {
   renderMap(model);
 }
 
+// Render coloured line backgrounds behind the textarea
+function renderHighlights(diagnostics) {
+  const lines = editor.value.split('\n');
+  // Build a map: lineNo (1-based) → worst severity
+  const lineMap = new Map();
+  for (const d of diagnostics) {
+    if (!d.line) continue;
+    const prev = lineMap.get(d.line);
+    if (!prev || (d.severity === SEV.ERROR && prev === SEV.WARN)) {
+      lineMap.set(d.line, d.severity);
+    }
+  }
+
+  const parts = lines.map((line, i) => {
+    const sev = lineMap.get(i + 1);
+    const escaped = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;') || ' '; // need at least a space so empty lines have height
+    if (sev === SEV.ERROR)   return `<span class="hl-line-error">${escaped}</span>`;
+    if (sev === SEV.WARN) return `<span class="hl-line-warning">${escaped}</span>`;
+    return `<span>${escaped}</span>`;
+  });
+  editorHighlights.innerHTML = parts.join('\n');
+}
+
+// Sync highlight scroll position with textarea
+editor.addEventListener('scroll', () => {
+  editorHighlights.scrollTop = editor.scrollTop;
+});
+
 function applyText(text) {
   const parsed = parse(text);
-  // Show errors
-  if (parsed.errors.length > 0) {
+  const { diagnostics } = parsed;
+
+  renderHighlights(diagnostics);
+
+  const errors   = diagnostics.filter(d => d.severity === SEV.ERROR);
+  const warnings = diagnostics.filter(d => d.severity === SEV.WARN);
+
+  if (diagnostics.length > 0) {
     errorPanel.classList.remove('hidden');
-    errorPanel.innerHTML = parsed.errors.map(e =>
-      `<div class="error-line">Line ${e.line}: ${esc(e.message)}</div>`
-    ).join('');
+    errorPanel.innerHTML = diagnostics.map(d => {
+      const lineLabel = d.line ? `<span class="diag-line-no">L${d.line}</span>` : `<span class="diag-line-no">—</span>`;
+      const badge = `<span class="diag-badge ${d.severity}">${d.severity === SEV.ERROR ? 'error' : 'warn'}</span>`;
+      const suggestion = d.suggestion ? `<span class="diag-suggestion">→ ${esc(d.suggestion)}</span>` : '';
+      return `<div class="diag-row" data-line="${d.line || ''}" title="${d.suggestion ? esc(d.suggestion) : ''}">
+        ${badge}${lineLabel}<span class="diag-message">${esc(d.message)}</span>${suggestion}
+      </div>`;
+    }).join('');
+
+    // Clicking a row jumps to that line in the editor
+    errorPanel.querySelectorAll('.diag-row[data-line]').forEach(row => {
+      const lineNo = parseInt(row.dataset.line);
+      if (!lineNo) return;
+      row.addEventListener('click', () => jumpToLine(lineNo));
+    });
   } else {
     errorPanel.classList.add('hidden');
+    errorPanel.innerHTML = '';
   }
+
   model = { title: parsed.title, activities: parsed.activities };
   rerender();
+}
+
+function jumpToLine(lineNo) {
+  const lines = editor.value.split('\n');
+  const charPos = lines.slice(0, lineNo - 1).reduce((acc, l) => acc + l.length + 1, 0);
+  editor.focus();
+  editor.setSelectionRange(charPos, charPos + (lines[lineNo - 1] || '').length);
+  // Scroll the line into view
+  const lineH = editor.scrollHeight / lines.length;
+  editor.scrollTop = Math.max(0, (lineNo - 4) * lineH);
+  editorHighlights.scrollTop = editor.scrollTop;
 }
 
 editor.addEventListener('input', () => {
   if (suppressTextSync) return;
   applyText(editor.value);
+});
+
+// ── Smart Tab / Shift+Tab / Enter in editor ──
+editor.addEventListener('keydown', e => {
+  const INDENT = '  '; // 2 spaces
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const end   = editor.selectionEnd;
+    const val   = editor.value;
+
+    if (start === end) {
+      // No selection — insert/remove indent at cursor
+      if (e.shiftKey) {
+        // Dedent: remove up to 2 leading spaces from current line
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        const line = val.slice(lineStart);
+        const spaces = line.match(/^ */)[0].length;
+        const remove = Math.min(spaces, INDENT.length);
+        if (remove > 0) {
+          editor.value = val.slice(0, lineStart) + val.slice(lineStart + remove);
+          editor.selectionStart = editor.selectionEnd = Math.max(lineStart, start - remove);
+        }
+      } else {
+        // Indent: insert 2 spaces at cursor
+        editor.value = val.slice(0, start) + INDENT + val.slice(end);
+        editor.selectionStart = editor.selectionEnd = start + INDENT.length;
+      }
+    } else {
+      // Selection spans multiple lines — indent/dedent each line
+      const selText  = val.slice(start, end);
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      const block = val.slice(lineStart, end);
+      let newBlock;
+      if (e.shiftKey) {
+        newBlock = block.split('\n').map(l => l.startsWith(INDENT) ? l.slice(INDENT.length) : l.replace(/^ /, '')).join('\n');
+      } else {
+        newBlock = block.split('\n').map(l => INDENT + l).join('\n');
+      }
+      editor.value = val.slice(0, lineStart) + newBlock + val.slice(end);
+      editor.selectionStart = lineStart;
+      editor.selectionEnd   = lineStart + newBlock.length;
+    }
+
+    applyText(editor.value);
+    return;
+  }
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const val   = editor.value;
+    // Match indentation of current line
+    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+    const currentLine = val.slice(lineStart, start);
+    const indent = currentLine.match(/^ */)[0];
+    const insert = '\n' + indent;
+    editor.value = val.slice(0, start) + insert + val.slice(editor.selectionEnd);
+    editor.selectionStart = editor.selectionEnd = start + insert.length;
+    applyText(editor.value);
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -1574,82 +2123,138 @@ function esc(str) {
 // EXAMPLE
 // ─────────────────────────────────────────────
 
-const EXAMPLE = `title: Online Bookshop
+const EXAMPLE = `title: Peer Review Messaging
 
-activity: Discover Books
-  task: Browse catalogue
-    story: See featured books on the homepage
-    story: Browse books by genre
+activity: Receive Invitation
+  task: Get notified
+    story: Receive email with review invitation
+    story: See invitation in app notification centre
     --- MVP
-    story: See new releases and bestsellers
-    story: View staff picks and curated lists
-    --- V2
-    story: See books on sale
-    story: See personalised recommendations
-  task: Search
-    story: Search by title or author
-    story: Filter results by price range
+    story: Get push notification on mobile
+    story: See unread badge on messaging icon
+  task: Read invitation
+    story: See manuscript title and abstract
+    story: See review deadline
+    story: See editor name and journal
     --- MVP
-    story: Filter by format (ebook, hardback)
-    story: Sort results by relevance or rating
-    --- V2
-    story: See search suggestions as I type
-    story: See "did you mean?" for typos
+    story: See prior review history with this journal
+    story: See conflicts of interest declaration form
 
-activity: Evaluate a Book
-  task: View book details
-    story: Read the full synopsis
-    story: See the cover image
+activity: Respond to Invitation
+  task: Ask clarifying questions
+    story: Reply to invitation with a free-text question
+    story: See question sent to editor in a thread
     --- MVP
-    story: View all available formats and editions
-    story: See page count and publisher info
-  task: Read reviews
-    story: Read editorial reviews
+    story: See when editor has read my message
+    story: Ask multiple questions before deciding
+    story: Quote part of the invitation in my reply
+  task: Receive editor reply
+    story: Get notified of editor reply by email
+    story: See reply threaded under my question in app
     --- MVP
-    story: Read customer reviews with ratings
-    story: Filter reviews by star rating
-    --- V2
-    story: Mark a review as helpful
-    story: See top critical and positive reviews
-  task: Check availability
-    story: See if the book is in stock
+    story: Get push notification of reply
+    story: See editor reply within the invitation context
+  task: Accept or decline
+    story: Accept the invitation
+    story: Decline the invitation with a reason
     --- MVP
-    story: See estimated delivery date
-    story: See store pickup availability
+    story: Suggest an alternative reviewer when declining
+    story: Accept after clarification is resolved
+    story: Set availability if accepting late
 
-activity: Purchase
-  task: Manage cart
-    story: Add a book to my cart
-    story: Remove items from my cart
+activity: During Review
+  task: Message the editor
+    story: Send a message to the editor at any point
+    story: See full conversation history in a thread
     --- MVP
-    story: See running cart total
-    story: Save an item for later
-    --- V2
-    story: See stock warnings for low inventory
-  task: Checkout
-    story: Enter my delivery address
-    story: Pay by card
-    story: Receive a confirmation email
+    story: Attach a file to a message
+    story: Mark a message as urgent
+  task: Receive editor messages
+    story: Get notified of new editor message by email
+    story: See message in app conversation thread
     --- MVP
-    story: Choose a delivery speed
-    story: Apply a discount code
-    --- V2
-    story: Pay via saved payment method
-    story: Review order before confirming
+    story: Get push notification
+    story: See message in context of the manuscript
+  task: Manage conversation
+    story: See all conversations for all active reviews
+    --- MVP
+    story: Search conversation history
+    story: Archive a resolved thread
+    story: Mark a message as unread
 
-activity: Post-purchase
-  task: Track order
-    story: See my order status in my account
+activity: Email Fallback
+  task: Receive via email
+    story: Get full message content in email body
+    story: Reply to email and have it appear in app
     --- MVP
-    story: Receive shipping notification
-    story: See estimated delivery window
-  task: Return
-    story: Request a return within 30 days
+    story: Reply quoted correctly into the thread
+    story: Attachments in email appear in app thread
+  task: Email deliverability
+    story: Receive confirmation email was delivered
     --- MVP
-    story: Print a prepaid return label
-    --- V2
-    story: Track the status of my refund
+    story: Get notified if email bounced
+    story: See email delivery status in conversation
+    story: Opt out of email and use in-app only
 `;
+
+// ─────────────────────────────────────────────
+// URL SHARING  (base64url encoding of UTF-8 text)
+// ─────────────────────────────────────────────
+// We use a simple but effective approach: encode the text as UTF-8,
+// then base64url-encode it. No external library needed.
+// For typical story maps (~1-3KB) the URL is ~2-4KB — well within browser limits.
+// If we need more compression in future, CompressionStream (deflate-raw) can be added.
+
+function encodeToHash(text) {
+  // UTF-8 encode, then base64url
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeFromHash(hash) {
+  if (!hash) return null;
+  try {
+    const b64 = hash.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function updateHash(text) {
+  history.replaceState(null, '', '#' + encodeToHash(text));
+}
+
+// Toast
+const shareToast = document.getElementById('share-toast');
+let toastTimer = null;
+function showToast(msg) {
+  shareToast.textContent = msg;
+  shareToast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('show'), 2500);
+}
+
+document.getElementById('btn-share').addEventListener('click', () => {
+  updateHash(editor.value);
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    showToast('Link copied to clipboard');
+  }).catch(() => {
+    showToast('URL updated — copy from the address bar');
+  });
+});
+
+// Keep hash in sync as you type (debounced)
+let hashSyncTimer = null;
+editor.addEventListener('input', () => {
+  clearTimeout(hashSyncTimer);
+  hashSyncTimer = setTimeout(() => updateHash(editor.value), 800);
+});
 
 // ─────────────────────────────────────────────
 // RESIZE HANDLE
@@ -1689,8 +2294,15 @@ document.getElementById('btn-export-html').addEventListener('click', () => expor
 // INIT
 // ─────────────────────────────────────────────
 
-editor.value = EXAMPLE;
-applyText(EXAMPLE);
+// Load from URL hash if present, otherwise show example
+const hashText = decodeFromHash(window.location.hash.slice(1));
+if (hashText) {
+  editor.value = hashText;
+  applyText(hashText);
+} else {
+  // Fresh open — show welcome state, don't pre-load example
+  applyText('');
+}
 </script>
 </body>
 </html>
