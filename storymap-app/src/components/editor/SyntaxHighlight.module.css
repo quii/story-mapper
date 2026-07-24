@@ -51,6 +51,13 @@
   color: #1a1a18;
 }
 
+/* [label](url) and bare URLs in story lines */
+.link {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* # comments */
 .comment {
   color: #94a3b8;

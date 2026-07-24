@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { StoryMap } from '../../core/types';
 import { allTasks, releaseAfterRow, storyAtRow, totalRows } from '../../core/layout';
+import { parseStoryText } from '../../core/storyLink';
 import {
   addActivity, addReleaseLine, addStory, addTask,
   moveReleaseLine, moveStory, moveTask,
@@ -289,29 +290,52 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
                     onDragLeave={() => setDragOver(null)}
                     onDrop={(e) => onCellDrop(e, actIdx, taskIdx, row)}
                   >
-                    {story && (
-                      <div
-                        className={styles.storyCard}
-                        draggable
-                        onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, row)}
-                        onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
-                      >
+                    {story && (() => {
+                      const { display, link } = parseStoryText(story.text);
+                      // Reconstruct raw text from edited display + preserved link suffix
+                      const linkSuffix = story.text.slice(display.length);
+                      const onStoryBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+                        const newDisplay = e.currentTarget.textContent?.trim() ?? display;
+                        onChange(renameStory(model, actIdx, taskIdx, row, newDisplay + linkSuffix));
+                      };
+                      return (
                         <div
-                          className={styles.storyText}
-                          contentEditable="plaintext-only"
-                          suppressContentEditableWarning
-                          onBlur={(e) => onChange(renameStory(model, actIdx, taskIdx, row, e.currentTarget.textContent?.trim() ?? story.text))}
-                          onKeyDown={(e) => !e.shiftKey && e.key === 'Enter' && e.currentTarget.blur()}
+                          className={styles.storyCard}
+                          draggable
+                          onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, row)}
+                          onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
                         >
-                          {story.text}
+                          <div className={styles.storyContent}>
+                            <div
+                              className={styles.storyText}
+                              contentEditable="plaintext-only"
+                              suppressContentEditableWarning
+                              onBlur={onStoryBlur}
+                              onKeyDown={(e) => !e.shiftKey && e.key === 'Enter' && e.currentTarget.blur()}
+                            >
+                              {display}
+                            </div>
+                            {link && (
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.storyLink}
+                                title={link.url}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {link.label}
+                              </a>
+                            )}
+                          </div>
+                          <button
+                            className={styles.removeStoryBtn}
+                            aria-label={`Remove story: ${display}`}
+                            onClick={() => onChange(removeStory(model, actIdx, taskIdx, row))}
+                          >×</button>
                         </div>
-                        <button
-                          className={styles.removeStoryBtn}
-                          aria-label={`Remove story: ${story.text}`}
-                          onClick={() => onChange(removeStory(model, actIdx, taskIdx, row))}
-                        >×</button>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })}

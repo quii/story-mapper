@@ -177,13 +177,43 @@
 
 .storyCard:active { cursor: grabbing; }
 
-.storyText {
+.storyContent {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.storyText {
   font-size: 12px;
   line-height: 1.45;
   outline: none;
   word-break: break-word;
   cursor: text;
+}
+
+.storyLink {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 1px 5px;
+  text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.storyLink:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
 }
 
 .removeStoryBtn {
