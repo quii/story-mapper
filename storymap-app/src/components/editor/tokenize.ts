@@ -1,23 +1,24 @@
 /** Tokenise a single line into spans for syntax highlighting */
 export interface Token {
-  type: 'kw-title' | 'kw-activity' | 'kw-task' | 'kw-story' | 'kw-release' | 'release-tier' | 'value' | 'link' | 'comment' | 'plain';
+  type: 'kw-title' | 'kw-activity' | 'kw-task' | 'kw-story' | 'kw-release' | 'release-tier' | 'value' | 'value-done' | 'link' | 'comment' | 'plain';
   text: string;
 }
 
-function tokenizeValue(text: string, allowLinks: boolean): Token[] {
-  if (!allowLinks) return [{ type: 'value', text }];
+function tokenizeValue(text: string, allowLinks: boolean, done = false): Token[] {
+  if (!allowLinks) return [{ type: done ? 'value-done' : 'value', text }];
+  const valueType: Token['type'] = done ? 'value-done' : 'value';
 
   const tokens: Token[] = [];
   const pattern = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\))|(https?:\/\/\S+)/g;
   let last = 0;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
-    if (match.index > last) tokens.push({ type: 'value', text: text.slice(last, match.index) });
+    if (match.index > last) tokens.push({ type: valueType, text: text.slice(last, match.index) });
     tokens.push({ type: 'link', text: match[0] });
     last = match.index + match[0].length;
   }
-  if (last < text.length) tokens.push({ type: 'value', text: text.slice(last) });
-  return tokens.length ? tokens : [{ type: 'value', text }];
+  if (last < text.length) tokens.push({ type: valueType, text: text.slice(last) });
+  return tokens.length ? tokens : [{ type: valueType, text }];
 }
 
 export function tokenizeLine(line: string): Token[] {
@@ -51,7 +52,7 @@ export function tokenizeLine(line: string): Token[] {
     return [
       { type: 'plain', text: leading },
       { type: kwType, text: kw },
-      ...tokenizeValue(rest, isStory),
+      ...tokenizeValue(rest, isStory, isStory && rest.trimStart().startsWith('~')),
     ];
   }
 

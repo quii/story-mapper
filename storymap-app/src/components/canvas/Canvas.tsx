@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { StoryMap } from '../../core/types';
 import { allTasks, releaseAfterRow, storyAtRow, totalRows } from '../../core/layout';
 import { parseStoryText } from '../../core/storyLink';
+import { isStoryDone, toggleStoryDone, storyDisplayText } from '../../core/storyDone';
 import {
   addActivity, addReleaseLine, addStory, addTask,
   moveReleaseLine, moveStory, moveTask,
@@ -291,23 +292,36 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
                     onDrop={(e) => onCellDrop(e, actIdx, taskIdx, row)}
                   >
                     {story && (() => {
-                      const { display, link } = parseStoryText(story.text);
-                      // Reconstruct raw text from edited display + preserved link suffix
-                      const linkSuffix = story.text.slice(display.length);
+                      const done = isStoryDone(story.text);
+                      const rawWithoutDone = storyDisplayText(story.text);
+                      const { display, link } = parseStoryText(rawWithoutDone);
+                      // On blur: rebuild full raw text = done marker + edited display + link suffix
+                      const linkSuffix = rawWithoutDone.slice(display.length);
+                      const donePrefix = done ? '~' : '';
                       const onStoryBlur = (e: React.FocusEvent<HTMLDivElement>) => {
                         const newDisplay = e.currentTarget.textContent?.trim() ?? display;
-                        onChange(renameStory(model, actIdx, taskIdx, row, newDisplay + linkSuffix));
+                        onChange(renameStory(model, actIdx, taskIdx, row, donePrefix + newDisplay + linkSuffix));
                       };
                       return (
                         <div
-                          className={styles.storyCard}
+                          className={`${styles.storyCard} ${done ? styles.storyCardDone : ''}`}
                           draggable
                           onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, row)}
                           onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
                         >
+                          <button
+                            className={`${styles.storyDoneBtn} ${done ? styles.storyDoneBtnDone : ''}`}
+                            onClick={(e) => { e.stopPropagation(); onChange(renameStory(model, actIdx, taskIdx, row, toggleStoryDone(story.text))); }}
+                            aria-label={done ? 'Mark story incomplete' : 'Mark story done'}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" fill={done ? 'currentColor' : 'none'} />
+                              {done && <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>}
+                            </svg>
+                          </button>
                           <div className={styles.storyContent}>
                             <div
-                              className={styles.storyText}
+                              className={`${styles.storyText} ${done ? styles.storyTextDone : ''}`}
                               contentEditable="plaintext-only"
                               suppressContentEditableWarning
                               onBlur={onStoryBlur}

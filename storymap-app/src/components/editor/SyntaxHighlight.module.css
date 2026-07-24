@@ -51,6 +51,12 @@
   color: #1a1a18;
 }
 
+/* done story text (~prefix) */
+.value-done {
+  color: #aaa;
+  text-decoration: line-through;
+}
+
 /* [label](url) and bare URLs in story lines */
 .link {
   color: #2563eb;

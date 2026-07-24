@@ -171,11 +171,39 @@
   min-height: 48px;
   cursor: grab;
   display: flex;
-  align-items: flex-start;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
 
 .storyCard:active { cursor: grabbing; }
+
+.storyCardDone {
+  background: #f9f9f7;
+  border-color: #e5e1db;
+}
+
+.storyDoneBtn {
+  flex-shrink: 0;
+  align-self: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #d0ccc6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: color 0.15s;
+}
+
+.storyDoneBtn:hover {
+  color: #059669;
+}
+
+.storyDoneBtnDone {
+  color: #059669;
+}
 
 .storyContent {
   flex: 1;
@@ -183,6 +211,8 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  align-self: stretch;
+  justify-content: center;
 }
 
 .storyText {
@@ -191,6 +221,11 @@
   outline: none;
   word-break: break-word;
   cursor: text;
+}
+
+.storyTextDone {
+  text-decoration: line-through;
+  color: #aaa;
 }
 
 .storyLink {
