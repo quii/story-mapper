@@ -3,6 +3,7 @@ import type { Diagnostic, StoryMap } from '../core/types';
 import { parse } from '../core/parse';
 import { serialize } from '../core/serialize';
 import { readUrlHash, updateUrlHash } from '../core/url';
+import { readLocalBackup, saveLocalBackup } from '../core/localBackup';
 import { STARTER_TEXT } from '../core/examples';
 
 interface UseStoryMapReturn {
@@ -13,15 +14,20 @@ interface UseStoryMapReturn {
   updateModel: (model: StoryMap) => void;
 }
 
+function persist(text: string): void {
+  updateUrlHash(text);
+  saveLocalBackup(text);
+}
+
 export function useStoryMap(): UseStoryMapReturn {
-  const initialText = readUrlHash() ?? STARTER_TEXT;
+  const initialText = readUrlHash() ?? readLocalBackup() ?? STARTER_TEXT;
   const initialParsed = parse(initialText);
 
   const [text, setTextState] = useState(initialText);
   const [model, setModel] = useState<StoryMap>(initialParsed.model);
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(initialParsed.diagnostics);
 
-  const hashDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // text → model (user typed in editor)
   const setText = useCallback((newText: string) => {
@@ -30,8 +36,8 @@ export function useStoryMap(): UseStoryMapReturn {
     setModel(newModel);
     setDiagnostics(newDiags);
 
-    if (hashDebounceRef.current) clearTimeout(hashDebounceRef.current);
-    hashDebounceRef.current = setTimeout(() => updateUrlHash(newText), 800);
+    if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+    persistDebounceRef.current = setTimeout(() => persist(newText), 800);
   }, []);
 
   // model → text (user edited canvas)
@@ -41,17 +47,17 @@ export function useStoryMap(): UseStoryMapReturn {
     setTextState(newText);
     setDiagnostics([]);
 
-    if (hashDebounceRef.current) clearTimeout(hashDebounceRef.current);
-    hashDebounceRef.current = setTimeout(() => updateUrlHash(newText), 800);
+    if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+    persistDebounceRef.current = setTimeout(() => persist(newText), 800);
   }, []);
 
-  // Sync URL on mount if no hash was present
+  // Sync URL/backup on mount if no hash was present
   useEffect(() => {
     if (!window.location.hash) {
-      updateUrlHash(initialText);
+      persist(initialText);
     }
     return () => {
-      if (hashDebounceRef.current) clearTimeout(hashDebounceRef.current);
+      if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

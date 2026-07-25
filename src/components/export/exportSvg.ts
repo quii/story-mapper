@@ -3,6 +3,7 @@ import { allTasks, tierCount, tierMaxRows, getStoriesForTier, releaseForTier } f
 import { releaseColor } from '../../core/palette';
 import { storyDisplayText } from '../../core/storyDone';
 import { parseStoryText } from '../../core/storyLink';
+import { escapeHtml } from '../../core/escapeHtml';
 
 const PAD = 24, CARD_W = 160, GAP = 4;
 const ACT_H = 40, TASK_H = 36, STORY_H = 52, RELEASE_H = 28, TITLE_H = 44;
@@ -19,9 +20,8 @@ function wrapText(str: string, maxLen = 22): string[] {
   return lines;
 }
 
-function esc(s: string) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function svgText(x: number, y: number, text: string, attrs = '') {
-  return `<text x="${x}" y="${y}" ${attrs}>${esc(text)}</text>`;
+  return `<text x="${x}" y="${y}" ${attrs}>${escapeHtml(text)}</text>`;
 }
 
 export function exportSvg(model: StoryMap): void {
