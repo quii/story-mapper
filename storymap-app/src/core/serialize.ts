@@ -19,8 +19,12 @@ export function serialize(model: StoryMap): string {
     lines.push(`activity: ${act.name}`);
     act.tasks.forEach((task) => {
       lines.push(`  task: ${task.name}`);
-      task.stories.forEach((story) => {
-        lines.push(`    story: ${story.text}`);
+      task.items.forEach((item) => {
+        if (item.type === 'story') {
+          lines.push(`    story: ${item.text}`);
+        } else {
+          lines.push(`    ---`);
+        }
       });
     });
     lines.push('');

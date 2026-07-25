@@ -1,60 +1,108 @@
 import type { Activity, Release, StoryItem, Task } from './types';
 
-/** Flattened task list, injecting a phantom task for activities with no tasks */
 export function allTasks(activities: Activity[]): { task: Task; actIdx: number; taskIdx: number }[] {
   const result: { task: Task; actIdx: number; taskIdx: number }[] = [];
   activities.forEach((act, ai) => {
     if (act.tasks.length === 0) {
-      result.push({ task: { id: `phantom-${ai}`, name: '', stories: [] }, actIdx: ai, taskIdx: 0 });
+      result.push({ task: { id: `phantom-${ai}`, name: '', items: [] }, actIdx: ai, taskIdx: 0 });
     } else {
-      act.tasks.forEach((task, ti) => {
-        result.push({ task, actIdx: ai, taskIdx: ti });
-      });
+      act.tasks.forEach((task, ti) => result.push({ task, actIdx: ai, taskIdx: ti }));
     }
   });
   return result;
 }
 
 /**
- * Total number of story rows to display.
- *
- * `release.tier` is the 1-indexed absolute row number after which the band appears.
- * The total rows = max(stories across all tasks, highest release tier, 1).
+ * Split a task's items into per-tier story buckets.
+ * Each TierSeparator starts a new bucket.
+ * Returns tiers[0], tiers[1], ...
  */
-export function totalRows(activities: Activity[], releases: Release[]): number {
-  const allTaskList = allTasks(activities).map((e) => e.task);
-  const maxStories = Math.max(0, ...allTaskList.map((t) => t.stories.length));
-  const maxReleaseTier = releases.length > 0 ? Math.max(...releases.map((r) => r.tier)) : 0;
-  return Math.max(maxStories, maxReleaseTier, 1);
+export function splitTiers(task: Task): StoryItem[][] {
+  const tiers: StoryItem[][] = [[]];
+  for (const item of task.items) {
+    if (item.type === 'separator') tiers.push([]);
+    else tiers[tiers.length - 1].push(item);
+  }
+  return tiers;
 }
 
-/**
- * For a given absolute row index (0-based), get the story for a task at that row.
- * Simply indexes into task.stories — stories fill rows from the top.
- */
-export function storyAtRow(task: Task, row: number): StoryItem | undefined {
-  return task.stories[row];
+/** Number of tiers = max separator count across all tasks + 1, or max release tier, whichever is larger. */
+export function tierCount(activities: Activity[], releases: Release[]): number {
+  let maxSeps = 0;
+  for (const act of activities)
+    for (const task of act.tasks) {
+      const seps = task.items.filter(i => i.type === 'separator').length;
+      if (seps > maxSeps) maxSeps = seps;
+    }
+  const maxRelTier = releases.length > 0 ? Math.max(...releases.map(r => r.tier)) : 0;
+  return Math.max(maxSeps, maxRelTier) + 1;
 }
 
-/**
- * The release band (if any) that appears AFTER the given 0-based row index.
- * A release with tier N appears after row N-1 (0-based), i.e. after the Nth row.
- */
-export function releaseAfterRow(releases: Release[], row: number): Release | undefined {
-  // row is 0-based; release.tier is 1-based, so release after row R is tier R+1
-  return releases.find((r) => r.tier === row + 1);
+/** For each tier index, the max number of stories any single task has in that tier. */
+export function tierMaxRows(activities: Activity[], releases: Release[]): number[] {
+  const numTiers = tierCount(activities, releases);
+  const maxRows = Array(numTiers).fill(0);
+  for (const { task } of allTasks(activities)) {
+    const tiers = splitTiers(task);
+    for (let t = 0; t < numTiers; t++) {
+      const count = tiers[t]?.length ?? 0;
+      if (count > maxRows[t]) maxRows[t] = count;
+    }
+  }
+  return maxRows;
 }
 
-/**
- * The flat story index for (row) within a task — just the row number itself,
- * since stories are stored flat.
- */
-export function storyFlatIndex(task: Task, row: number): number {
-  if (row < 0 || row >= task.stories.length) return -1;
-  return row;
+/** Flat index of the story at (tier, slot) within a task's items array. */
+export function storyFlatIndex(task: Task, tier: number, slot: number): number {
+  let t = 0;
+  let s = 0;
+  for (let i = 0; i < task.items.length; i++) {
+    const item = task.items[i];
+    if (item.type === 'separator') { t++; s = 0; }
+    else {
+      if (t === tier && s === slot) return i;
+      s++;
+    }
+  }
+  return -1;
 }
 
-/** Stories belonging to rows in a given range [fromRow, toRow) */
-export function getStoriesInRange(task: Task, fromRow: number, toRow: number): StoryItem[] {
-  return task.stories.slice(fromRow, toRow);
+/** Index at which to insert a new story at the end of the given tier. */
+export function tierInsertIndex(task: Task, tier: number): number {
+  let t = 0;
+  for (let i = 0; i < task.items.length; i++) {
+    if (task.items[i].type === 'separator') {
+      if (t === tier) return i;
+      t++;
+    }
+  }
+  return task.items.length;
+}
+
+/** Index of the Nth separator (0-based). Returns -1 if not found. */
+export function separatorIndex(task: Task, tier: number): number {
+  let count = 0;
+  for (let i = 0; i < task.items.length; i++) {
+    if (task.items[i].type === 'separator') {
+      if (count === tier) return i;
+      count++;
+    }
+  }
+  return -1;
+}
+
+/** Stories in a given tier for a task. */
+export function getStoriesForTier(task: Task, tier: number): StoryItem[] {
+  return splitTiers(task)[tier] ?? [];
+}
+
+/** Total number of display rows = sum of tierMaxRows. */
+export function totalDisplayRows(activities: Activity[], releases: Release[]): number {
+  return tierMaxRows(activities, releases).reduce((a, b) => a + b, 0);
+}
+
+/** Release band after a given tier (0-based tier index). */
+export function releaseForTier(releases: Release[], tier: number): Release | undefined {
+  // tier is 0-based; release.tier is 1-based separator index
+  return releases.find(r => r.tier === tier + 1);
 }

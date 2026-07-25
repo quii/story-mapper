@@ -1,96 +1,101 @@
 import { describe, it, expect } from 'vitest';
-import { allTasks, totalRows, storyAtRow, releaseAfterRow, storyFlatIndex } from '../../core/layout';
+import { allTasks, tierCount, tierMaxRows, getStoriesForTier, storyFlatIndex, tierInsertIndex, releaseForTier } from '../../core/layout';
 import type { Activity, Release, Task } from '../../core/types';
 
-function makeTask(stories: string[]): Task {
-  return {
-    id: 't1',
-    name: 'Task',
-    stories: stories.map((text, i) => ({ id: String(i), type: 'story' as const, text })),
-  };
+function makeTask(items: ({ type: 'story'; text: string } | { type: 'separator' })[]): Task {
+  return { id: 't1', name: 'Task', items: items.map((i, idx) => ({ ...i, id: String(idx) })) };
 }
-
-function makeActivity(tasks: Task[]): Activity {
-  return { id: 'a1', name: 'Act', tasks };
-}
-
-function makeRelease(tier: number, name = 'R'): Release {
-  return { id: `r${tier}`, name, tier };
-}
+function makeActivity(tasks: Task[]): Activity { return { id: 'a1', name: 'Act', tasks }; }
+function makeRelease(tier: number, name = 'R'): Release { return { id: `r${tier}`, name, tier }; }
 
 describe('layout', () => {
   describe('allTasks', () => {
     it('returns tasks from all activities', () => {
-      const acts = [makeActivity([makeTask(['S'])]), makeActivity([makeTask(['S2'])])];
+      const acts = [makeActivity([makeTask([{ type: 'story', text: 'S' }])]), makeActivity([makeTask([{ type: 'story', text: 'S2' }])])];
       expect(allTasks(acts)).toHaveLength(2);
     });
-
     it('injects phantom task for activity with no tasks', () => {
       const flat = allTasks([makeActivity([])]);
       expect(flat).toHaveLength(1);
-      expect(flat[0].task.stories).toHaveLength(0);
+      expect(flat[0].task.items).toHaveLength(0);
     });
   });
 
-  describe('totalRows', () => {
-    it('returns story count when no releases', () => {
-      const acts = [makeActivity([makeTask(['S1', 'S2', 'S3'])])];
-      expect(totalRows(acts, [])).toBe(3);
+  describe('tierCount', () => {
+    it('returns 1 with no separators and no releases', () => {
+      expect(tierCount([makeActivity([makeTask([{ type: 'story', text: 'S' }])])], [])).toBe(1);
     });
-
-    it('returns at least 1 for empty map', () => {
-      expect(totalRows([], [])).toBe(1);
+    it('counts separators in tasks', () => {
+      const task = makeTask([{ type: 'story', text: 'S' }, { type: 'separator' }, { type: 'story', text: 'S2' }]);
+      expect(tierCount([makeActivity([task])], [])).toBe(2);
     });
-
-    it('extends rows to cover release tier even if no stories that far', () => {
-      const acts = [makeActivity([makeTask(['S1'])])];
-      expect(totalRows(acts, [makeRelease(3)])).toBe(3);
-    });
-
-    it('uses max of stories and release tier', () => {
-      const acts = [makeActivity([makeTask(['S1', 'S2', 'S3', 'S4', 'S5'])])];
-      expect(totalRows(acts, [makeRelease(2)])).toBe(5);
+    it('uses release tier if higher than separator count', () => {
+      expect(tierCount([], [makeRelease(3)])).toBe(4);
     });
   });
 
-  describe('storyAtRow', () => {
-    it('returns story at row', () => {
-      const task = makeTask(['A', 'B', 'C']);
-      expect(storyAtRow(task, 0)?.text).toBe('A');
-      expect(storyAtRow(task, 2)?.text).toBe('C');
+  describe('tierMaxRows', () => {
+    it('returns story count per tier', () => {
+      const task = makeTask([{ type: 'story', text: 'A' }, { type: 'story', text: 'B' }, { type: 'separator' }, { type: 'story', text: 'C' }]);
+      const maxRows = tierMaxRows([makeActivity([task])], [makeRelease(1)]);
+      expect(maxRows[0]).toBe(2);
+      expect(maxRows[1]).toBe(1);
     });
-
-    it('returns undefined for out-of-range row', () => {
-      const task = makeTask(['A']);
-      expect(storyAtRow(task, 5)).toBeUndefined();
-    });
-  });
-
-  describe('releaseAfterRow', () => {
-    it('finds release after the correct row (0-based)', () => {
-      // release @ 1 means after row 0 (0-based)
-      const releases = [makeRelease(1, 'MVP')];
-      expect(releaseAfterRow(releases, 0)?.name).toBe('MVP');
-      expect(releaseAfterRow(releases, 1)).toBeUndefined();
-    });
-
-    it('finds release @ 3 after row 2', () => {
-      const releases = [makeRelease(3, 'Beta')];
-      expect(releaseAfterRow(releases, 2)?.name).toBe('Beta');
-      expect(releaseAfterRow(releases, 1)).toBeUndefined();
+    it('takes max across tasks', () => {
+      const t1 = makeTask([{ type: 'story', text: 'A' }, { type: 'story', text: 'B' }]);
+      const t2 = makeTask([{ type: 'story', text: 'C' }]);
+      const maxRows = tierMaxRows([makeActivity([t1, t2])], []);
+      expect(maxRows[0]).toBe(2);
     });
   });
 
   describe('storyFlatIndex', () => {
-    it('returns the row number as the flat index', () => {
-      const task = makeTask(['A', 'B', 'C']);
-      expect(storyFlatIndex(task, 0)).toBe(0);
-      expect(storyFlatIndex(task, 2)).toBe(2);
+    it('returns index of story at tier 0 slot 0', () => {
+      const task = makeTask([{ type: 'story', text: 'S' }]);
+      expect(storyFlatIndex(task, 0, 0)).toBe(0);
     });
+    it('returns index of story in tier 1', () => {
+      const task = makeTask([{ type: 'story', text: 'A' }, { type: 'separator' }, { type: 'story', text: 'B' }]);
+      expect(storyFlatIndex(task, 1, 0)).toBe(2);
+    });
+    it('returns -1 when out of range', () => {
+      const task = makeTask([{ type: 'story', text: 'S' }]);
+      expect(storyFlatIndex(task, 1, 0)).toBe(-1);
+    });
+  });
 
-    it('returns -1 for out-of-range', () => {
-      const task = makeTask(['A']);
-      expect(storyFlatIndex(task, 5)).toBe(-1);
+  describe('tierInsertIndex', () => {
+    it('returns separator index for tier 0', () => {
+      const task = makeTask([{ type: 'story', text: 'S' }, { type: 'separator' }]);
+      expect(tierInsertIndex(task, 0)).toBe(1);
+    });
+    it('returns end of array when no separator', () => {
+      const task = makeTask([{ type: 'story', text: 'S' }]);
+      expect(tierInsertIndex(task, 0)).toBe(1);
+    });
+  });
+
+  describe('getStoriesForTier', () => {
+    it('returns stories in tier 0', () => {
+      const task = makeTask([{ type: 'story', text: 'A' }, { type: 'story', text: 'B' }, { type: 'separator' }, { type: 'story', text: 'C' }]);
+      expect(getStoriesForTier(task, 0).map(s => s.text)).toEqual(['A', 'B']);
+    });
+    it('returns stories in tier 1', () => {
+      const task = makeTask([{ type: 'story', text: 'A' }, { type: 'separator' }, { type: 'story', text: 'B' }]);
+      expect(getStoriesForTier(task, 1).map(s => s.text)).toEqual(['B']);
+    });
+    it('returns empty for empty tier', () => {
+      const task = makeTask([{ type: 'separator' }]);
+      expect(getStoriesForTier(task, 0)).toHaveLength(0);
+    });
+  });
+
+  describe('releaseForTier', () => {
+    it('finds release for tier 0 (release.tier === 1)', () => {
+      expect(releaseForTier([makeRelease(1, 'MVP')], 0)?.name).toBe('MVP');
+    });
+    it('returns undefined when no release for tier', () => {
+      expect(releaseForTier([makeRelease(2, 'Beta')], 0)).toBeUndefined();
     });
   });
 });

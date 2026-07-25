@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { StoryMap } from '../../core/types';
-import { allTasks, releaseAfterRow, storyAtRow, totalRows } from '../../core/layout';
+import { allTasks, tierCount, tierMaxRows, getStoriesForTier, releaseForTier } from '../../core/layout';
 import { parseStoryText } from '../../core/storyLink';
 import { isStoryDone, toggleStoryDone, storyDisplayText } from '../../core/storyDone';
 import {
@@ -22,7 +22,7 @@ interface Props {
 
 type DragState =
   | { type: 'task'; actIdx: number; taskIdx: number }
-  | { type: 'story'; actIdx: number; taskIdx: number; row: number }
+  | { type: 'story'; actIdx: number; taskIdx: number; tier: number; slot: number }
   | null;
 
 const COL_W = 160;
@@ -40,7 +40,8 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
   const { activities, releases } = model;
   const hasContent = activities.length > 0;
   const flatTasks = allTasks(activities);
-  const numRows = totalRows(activities, releases);
+  const numTiers = tierCount(activities, releases);
+  const maxRows = tierMaxRows(activities, releases);
 
   // ── Task drag ──────────────────────────────────────────────────────────────
   const onTaskDragStart = (e: React.DragEvent, actIdx: number, taskIdx: number) => {
@@ -63,8 +64,8 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
   };
 
   // ── Story drag ─────────────────────────────────────────────────────────────
-  const onStoryDragStart = (e: React.DragEvent, actIdx: number, taskIdx: number, row: number) => {
-    dragRef.current = { type: 'story', actIdx, taskIdx, row };
+  const onStoryDragStart = (e: React.DragEvent, actIdx: number, taskIdx: number, tier: number, slot: number) => {
+    dragRef.current = { type: 'story', actIdx, taskIdx, tier, slot };
     e.dataTransfer.effectAllowed = 'move';
     e.stopPropagation();
   };
@@ -73,13 +74,13 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
     e.preventDefault();
     setDragOver(key);
   };
-  const onCellDrop = (e: React.DragEvent, toActIdx: number, toTaskIdx: number, toRow: number) => {
+  const onCellDrop = (e: React.DragEvent, toActIdx: number, toTaskIdx: number, toTier: number, toSlot: number | null, hasStory: boolean) => {
     e.preventDefault();
     setDragOver(null);
     if (dragRef.current?.type !== 'story') return;
-    const { actIdx: fAi, taskIdx: fTi, row: fRow } = dragRef.current;
+    const { actIdx: fAi, taskIdx: fTi, tier: fTier, slot: fSlot } = dragRef.current;
     dragRef.current = null;
-    onChange(moveStory(model, fAi, fTi, fRow, toActIdx, toTaskIdx, toRow));
+    onChange(moveStory(model, fAi, fTi, fTier, fSlot, toActIdx, toTaskIdx, toTier, hasStory ? toSlot : null));
   };
 
   // ── Release drag ───────────────────────────────────────────────────────────
@@ -130,47 +131,26 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
     return <EmptyState onLoadExample={onLoadExample} onStartFromScratch={onStartFromScratch} />;
   }
 
-  /**
-   * Single unified grid.
-   *
-   * Column layout: for each activity, N task columns (160px) + 1 button column (BTN_W px).
-   * Then one final "add activity" column.
-   *
-   * Example with activities [2 tasks, 1 task]:
-   *   160px 160px 32px | 160px 32px | auto
-   *   col 1  col 2  col3  col4  col5  col6
-   *
-   * Activity cards span their task columns + button column.
-   * Task cells each occupy one 160px column.
-   * + task button occupies the 32px column.
-   * Story cells occupy only the 160px task columns (not the button columns).
-   * Release bands span all columns via `1 / -1`.
-   */
-
-  // Build column template and record where each activity starts (1-based)
+  // Build grid column template
   const colTemplate: string[] = [];
-  const actStart: number[] = []; // 1-based grid column where each activity's tasks begin
-
+  const actStart: number[] = [];
   let col = 1;
   activities.forEach((act) => {
     actStart.push(col);
     const tc = Math.max(act.tasks.length, 1);
     for (let i = 0; i < tc; i++) colTemplate.push(`${COL_W}px`);
-    colTemplate.push(`${BTN_W}px`); // button column
+    colTemplate.push(`${BTN_W}px`);
     col += tc + 1;
   });
-  colTemplate.push('auto'); // + activity column
+  colTemplate.push('auto');
   const gridTemplateColumns = colTemplate.join(' ');
 
-  // For each flat task, its grid column
   let taskColCursor = 1;
   const taskGridCols: number[] = [];
   activities.forEach((act) => {
     const tc = Math.max(act.tasks.length, 1);
-    for (let i = 0; i < tc; i++) {
-      taskGridCols.push(taskColCursor + i);
-    }
-    taskColCursor += tc + 1; // skip button column
+    for (let i = 0; i < tc; i++) taskGridCols.push(taskColCursor + i);
+    taskColCursor += tc + 1;
   });
 
   return (
@@ -189,50 +169,32 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
         </div>
       )}
 
-      <div
-        className={`${styles.grid} ${relDragActive ? styles.relDragActive : ''}`}
-        style={{ gridTemplateColumns }}
-      >
-        {/* ── Row 1: Activity cards ── */}
+      <div className={`${styles.grid} ${relDragActive ? styles.relDragActive : ''}`} style={{ gridTemplateColumns }}>
+
+        {/* Activity cards */}
         {activities.map((act, ai) => {
           const tc = Math.max(act.tasks.length, 1);
-          const start = actStart[ai];
-          // span: tc task cols + 1 button col
           return (
-            <div
-              key={act.id}
-              className={styles.activityCard}
-              style={{ gridColumn: `${start} / span ${tc + 1}`, gridRow: 1 }}
-            >
-              <div
-                className={styles.activityName}
-                contentEditable="plaintext-only"
-                suppressContentEditableWarning
+            <div key={act.id} className={styles.activityCard} style={{ gridColumn: `${actStart[ai]} / span ${tc + 1}`, gridRow: 1 }}>
+              <div className={styles.activityName} contentEditable="plaintext-only" suppressContentEditableWarning
                 onBlur={(e) => onChange(renameActivity(model, ai, e.currentTarget.textContent?.trim() ?? act.name))}
-                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              >
-                {act.name}
-              </div>
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}>{act.name}</div>
               <button className={styles.removeBtn} aria-label={`Remove activity ${act.name}`} onClick={() => onChange(removeActivity(model, ai))}>×</button>
             </div>
           );
         })}
-
-        {/* + activity button in the last column */}
         <div className={styles.addActivityCell} style={{ gridRow: '1 / span 2' }}>
           <button className={styles.addActivityBtn} aria-label="Add activity" onClick={() => onChange(addActivity(model))}>+ activity</button>
         </div>
 
-        {/* ── Row 2: Task cells + add-task buttons ── */}
+        {/* Task cells */}
         {flatTasks.map(({ task, actIdx, taskIdx }, colIdx) => {
           const isPhantom = activities[actIdx].tasks.length === 0;
           const taskKey = `task-${colIdx}`;
-          const gridCol = taskGridCols[colIdx];
           return (
-            <div
-              key={task.id}
+            <div key={task.id}
               className={`${styles.taskCell} ${isPhantom ? styles.phantomTask : ''} ${dragOver === taskKey ? styles.dragOverTask : ''}`}
-              style={{ gridColumn: gridCol, gridRow: 2 }}
+              style={{ gridColumn: taskGridCols[colIdx], gridRow: 2 }}
               draggable={!isPhantom}
               onDragStart={!isPhantom ? (e) => onTaskDragStart(e, actIdx, taskIdx) : undefined}
               onDragOver={!isPhantom ? (e) => onTaskDragOver(e, taskKey) : undefined}
@@ -240,151 +202,130 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
               onDrop={!isPhantom ? (e) => onTaskDrop(e, actIdx, taskIdx) : undefined}
               onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
             >
-              {!isPhantom && (
-                <>
-                  <div
-                    className={styles.taskName}
-                    contentEditable="plaintext-only"
-                    suppressContentEditableWarning
-                    onBlur={(e) => onChange(renameTask(model, actIdx, taskIdx, e.currentTarget.textContent?.trim() ?? task.name))}
-                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                  >
-                    {task.name}
-                  </div>
-                  <button className={styles.removeBtn} aria-label={`Remove task ${task.name}`} onClick={() => onChange(removeTask(model, actIdx, taskIdx))}>×</button>
-                </>
-              )}
+              {!isPhantom && (<>
+                <div className={styles.taskName} contentEditable="plaintext-only" suppressContentEditableWarning
+                  onBlur={(e) => onChange(renameTask(model, actIdx, taskIdx, e.currentTarget.textContent?.trim() ?? task.name))}
+                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}>{task.name}</div>
+                <button className={styles.removeBtn} aria-label={`Remove task ${task.name}`} onClick={() => onChange(removeTask(model, actIdx, taskIdx))}>×</button>
+              </>)}
             </div>
           );
         })}
-
-        {/* + task buttons: one per activity, in the button column */}
         {activities.map((act, ai) => {
           const tc = Math.max(act.tasks.length, 1);
-          const btnCol = actStart[ai] + tc; // the 32px button column
           return (
-            <div key={`add-task-${ai}`} className={styles.addTaskCell} style={{ gridColumn: btnCol, gridRow: 2 }}>
-              <button
-                className={styles.addTaskBtn}
-                aria-label={`Add task to ${act.name}`}
-                onClick={() => onChange(addTask(model, ai))}
-              >+</button>
+            <div key={`add-task-${ai}`} className={styles.addTaskCell} style={{ gridColumn: actStart[ai] + tc, gridRow: 2 }}>
+              <button className={styles.addTaskBtn} aria-label={`Add task to ${act.name}`} onClick={() => onChange(addTask(model, ai))}>+</button>
             </div>
           );
         })}
 
-        {/* ── Story rows ── */}
-        {Array.from({ length: numRows }, (_, row) => {
-          const release = releaseAfterRow(releases, row);
-          const tier = row + 1;
-          return (
-            <div key={`row-${row}`} style={{ display: 'contents' }}>
-              {flatTasks.map(({ task, actIdx, taskIdx }, colIdx) => {
-                const story = storyAtRow(task, row);
-                const cellKey = `cell-${colIdx}-${row}`;
-                return (
-                  <div
-                    key={cellKey}
-                    className={`${styles.storyCell} ${dragOver === cellKey ? styles.dragOverCell : ''}`}
-                    style={{ gridColumn: taskGridCols[colIdx] }}
-                    onDragOver={(e) => onCellDragOver(e, cellKey)}
-                    onDragLeave={() => setDragOver(null)}
-                    onDrop={(e) => onCellDrop(e, actIdx, taskIdx, row)}
-                  >
-                    {story && (() => {
-                      const done = isStoryDone(story.text);
-                      const rawWithoutDone = storyDisplayText(story.text);
-                      const { display, link } = parseStoryText(rawWithoutDone);
-                      // On blur: rebuild full raw text = done marker + edited display + link suffix
-                      const linkSuffix = rawWithoutDone.slice(display.length);
-                      const donePrefix = done ? '~' : '';
-                      const onStoryBlur = (e: React.FocusEvent<HTMLDivElement>) => {
-                        const newDisplay = e.currentTarget.textContent?.trim() ?? display;
-                        onChange(renameStory(model, actIdx, taskIdx, row, donePrefix + newDisplay + linkSuffix));
-                      };
-                      return (
-                        <div
-                          className={`${styles.storyCard} ${done ? styles.storyCardDone : ''}`}
-                          draggable
-                          onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, row)}
-                          onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
-                        >
-                          <button
-                            className={`${styles.storyDoneBtn} ${done ? styles.storyDoneBtnDone : ''}`}
-                            onClick={(e) => { e.stopPropagation(); onChange(renameStory(model, actIdx, taskIdx, row, toggleStoryDone(story.text))); }}
-                            aria-label={done ? 'Mark story incomplete' : 'Mark story done'}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" fill={done ? 'currentColor' : 'none'} />
-                              {done && <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>}
-                            </svg>
-                          </button>
-                          <div className={styles.storyContent}>
-                            <div
-                              className={`${styles.storyText} ${done ? styles.storyTextDone : ''}`}
-                              contentEditable="plaintext-only"
-                              suppressContentEditableWarning
-                              onBlur={onStoryBlur}
-                              onKeyDown={(e) => !e.shiftKey && e.key === 'Enter' && e.currentTarget.blur()}
-                            >
-                              {display}
-                            </div>
-                            {link && (
-                              <a
-                                href={link.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={styles.storyLink}
-                                title={link.url}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {link.label}
-                              </a>
-                            )}
-                          </div>
-                          <button
-                            className={styles.removeStoryBtn}
-                            aria-label={`Remove story: ${display}`}
-                            onClick={() => onChange(removeStory(model, actIdx, taskIdx, row))}
-                          >×</button>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
+        {/* Story tiers */}
+        {Array.from({ length: numTiers }, (_, tier) => {
+          const rows = Math.max(maxRows[tier] ?? 0, 1);
+          const release = releaseForTier(releases, tier);
 
-              {/* Release slot after every row */}
+          return (
+            <div key={`tier-${tier}`} style={{ display: 'contents' }}>
+              {Array.from({ length: rows }, (_, slot) => (
+                <div key={`slot-${slot}`} style={{ display: 'contents' }}>
+                  {flatTasks.map(({ task, actIdx, taskIdx }, colIdx) => {
+                    const tierStories = getStoriesForTier(task, tier);
+                    const story = tierStories[slot];
+                    const cellKey = `cell-${colIdx}-${tier}-${slot}`;
+                    return (
+                      <div key={cellKey}
+                        className={`${styles.storyCell} ${dragOver === cellKey ? styles.dragOverCell : ''}`}
+                        style={{ gridColumn: taskGridCols[colIdx] }}
+                        onDragOver={(e) => onCellDragOver(e, cellKey)}
+                        onDragLeave={() => setDragOver(null)}
+                        onDrop={(e) => onCellDrop(e, actIdx, taskIdx, tier, slot, !!story)}
+                      >
+                        {story && (() => {
+                          const done = isStoryDone(story.text);
+                          const rawWithoutDone = storyDisplayText(story.text);
+                          const { display, link } = parseStoryText(rawWithoutDone);
+                          const linkSuffix = rawWithoutDone.slice(display.length);
+                          const donePrefix = done ? '~' : '';
+                          const onStoryBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+                            const newDisplay = e.currentTarget.textContent?.trim() ?? display;
+                            onChange(renameStory(model, actIdx, taskIdx, tier, slot, donePrefix + newDisplay + linkSuffix));
+                          };
+                          return (
+                            <div className={`${styles.storyCard} ${done ? styles.storyCardDone : ''}`}
+                              draggable
+                              onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, tier, slot)}
+                              onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
+                            >
+                              <button
+                                className={`${styles.storyDoneBtn} ${done ? styles.storyDoneBtnDone : ''}`}
+                                onClick={(e) => { e.stopPropagation(); onChange(renameStory(model, actIdx, taskIdx, tier, slot, toggleStoryDone(story.text))); }}
+                                aria-label={done ? 'Mark incomplete' : 'Mark done'}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                  <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" fill={done ? 'currentColor' : 'none'} />
+                                  {done && <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>}
+                                </svg>
+                              </button>
+                              <div className={styles.storyContent}>
+                                <div className={`${styles.storyText} ${done ? styles.storyTextDone : ''}`}
+                                  contentEditable="plaintext-only" suppressContentEditableWarning
+                                  onBlur={onStoryBlur}
+                                  onKeyDown={(e) => !e.shiftKey && e.key === 'Enter' && e.currentTarget.blur()}
+                                >{display}</div>
+                                {link && (
+                                  <a href={link.url} target="_blank" rel="noopener noreferrer"
+                                    className={styles.storyLink} title={link.url}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >{link.label}</a>
+                                )}
+                              </div>
+                              <button className={styles.removeStoryBtn} aria-label={`Remove story: ${display}`}
+                                onClick={() => onChange(removeStory(model, actIdx, taskIdx, tier, slot))}>×</button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
+              {/* + story row */}
+              {flatTasks.map(({ actIdx, taskIdx }, colIdx) => (
+                <div key={`add-${colIdx}-${tier}`} className={styles.addStoryCell} style={{ gridColumn: taskGridCols[colIdx] }}>
+                  <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, tier))} aria-label="Add story">+</button>
+                </div>
+              ))}
+
+              {/* Release band or empty slot after tier */}
               {(() => {
-                const isDragOver = relDragOver === `release-${tier}`;
-                const isLast = row === numRows - 1;
+                const isDragOver = relDragOver === `release-${tier + 1}`;
+                const isLastTier = tier === numTiers - 1;
+
                 if (release) {
                   return (
-                    <div
-                      data-release-tier={release.tier}
+                    <div data-release-tier={release.tier}
                       className={`${styles.releaseBand} ${isDragOver ? styles.relDragOver : ''}`}
-                      style={{ gridColumn: `1 / -1`, '--release-color': releaseColor(release.tier - 1) } as React.CSSProperties}
+                      style={{ gridColumn: '1 / -1', '--release-color': releaseColor(tier) } as React.CSSProperties}
                     >
-                      <span className={styles.releaseGrip} onPointerDown={(e) => onRelGripPointerDown(e, release.tier)} role="button" aria-label={`Drag release line ${release.name ?? release.tier}`}>⠿</span>
-                      <span
-                        className={styles.releaseLabel}
-                        style={{ background: releaseColor(release.tier - 1) }}
-                        contentEditable="plaintext-only"
-                        suppressContentEditableWarning
+                      <span className={styles.releaseGrip} onPointerDown={(e) => onRelGripPointerDown(e, release.tier)} role="button" aria-label={`Drag release ${release.name ?? tier + 1}`}>⠿</span>
+                      <span className={styles.releaseLabel} style={{ background: releaseColor(tier) }}
+                        contentEditable="plaintext-only" suppressContentEditableWarning
                         onBlur={(e) => onChange(renameRelease(model, release.tier, e.currentTarget.textContent?.trim() || null))}
                         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                        role="textbox"
-                        aria-label="Release name"
+                        role="textbox" aria-label="Release name"
                       >{release.name ?? ''}</span>
-                      <div className={styles.releaseLine} style={{ background: releaseColor(release.tier - 1) }} />
-                      <button className={styles.removeReleaseBtn} onClick={() => onChange(removeReleaseLine(model, release.tier))} aria-label={`Remove release ${release.name ?? release.tier}`}>×</button>
+                      <div className={styles.releaseLine} style={{ background: releaseColor(tier) }} />
+                      <button className={styles.removeReleaseBtn} onClick={() => onChange(removeReleaseLine(model, release.tier))} aria-label={`Remove release ${release.name ?? tier + 1}`}>×</button>
                     </div>
                   );
                 }
-                if (isLast) return null;
+
+                if (isLastTier) return null;
+
                 return (
-                  <div
-                    data-release-tier={tier}
+                  <div data-release-tier={tier + 1}
                     className={`${styles.releaseSlot} ${isDragOver ? styles.releaseSlotOver : ''}`}
                     style={{ gridColumn: '1 / -1' }}
                   />
@@ -394,20 +335,18 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
           );
         })}
 
-        {/* + story buttons */}
+        {/* Add story + add release after last tier */}
         {flatTasks.map(({ actIdx, taskIdx }, colIdx) => (
-          <div key={`add-story-${colIdx}`} className={styles.addStoryCell} style={{ gridColumn: taskGridCols[colIdx] }}>
-            <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, numRows))} aria-label="Add story">+</button>
+          <div key={`add-story-last-${colIdx}`} className={styles.addStoryCell} style={{ gridColumn: taskGridCols[colIdx] }}>
+            <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, numTiers - 1))} aria-label="Add story">+</button>
           </div>
         ))}
 
-        {/* Final release drop zone */}
-        <div
-          data-release-tier={numRows}
-          className={`${styles.releaseSlot} ${styles.releaseSlotFinal} ${relDragOver === `release-${numRows}` ? styles.releaseSlotOver : ''}`}
+        <div data-release-tier={numTiers}
+          className={`${styles.releaseSlot} ${styles.releaseSlotFinal} ${relDragOver === `release-${numTiers}` ? styles.releaseSlotOver : ''}`}
           style={{ gridColumn: '1 / -1' }}
         >
-          <button className={styles.addReleaseBtn} onClick={() => onChange(addReleaseLine(model, numRows - 1))}>+ release</button>
+          <button className={styles.addReleaseBtn} onClick={() => onChange(addReleaseLine(model, numTiers - 1))}>+ release</button>
         </div>
       </div>
     </div>

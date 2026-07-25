@@ -1,14 +1,14 @@
 export interface StoryMap {
   title: string | null;
-  releases: Release[];   // top-level, ordered list of release lines
+  releases: Release[];   // top-level release name declarations
   activities: Activity[];
 }
 
-/** A release line: appears after `tier` rows of stories (1-indexed). */
+/** A named release line. tier = 1-based separator index (1st --- in each task = tier 1). */
 export interface Release {
   id: string;
   name: string | null;
-  tier: number; // 1-indexed: release appears after tier N's story rows
+  tier: number;
 }
 
 export interface Activity {
@@ -20,8 +20,10 @@ export interface Activity {
 export interface Task {
   id: string;
   name: string;
-  stories: StoryItem[];  // flat ordered list — no more inline release separators
+  items: Item[];  // flat list of StoryItems and ReleaseItems (tier separators)
 }
+
+export type Item = StoryItem | TierSeparator;
 
 export interface StoryItem {
   id: string;
@@ -29,18 +31,17 @@ export interface StoryItem {
   text: string;
 }
 
-// Keep ReleaseItem only for backwards-compat parsing of old --- syntax
-export interface ReleaseItem {
+/** A tier boundary within a task — written as `---` in the text format. */
+export interface TierSeparator {
   id: string;
-  type: 'release';
-  name: string | null;
+  type: 'separator';
 }
 
 export type DiagnosticSeverity = 'error' | 'warning';
 
 export interface Diagnostic {
   severity: DiagnosticSeverity;
-  line: number; // 1-indexed
+  line: number;
   message: string;
   suggestion?: string;
 }
