@@ -5,10 +5,11 @@ import { storyDisplayText } from '../../core/storyDone';
 import { parseStoryText } from '../../core/storyLink';
 import { escapeHtml } from '../../core/escapeHtml';
 
-const PAD = 24, CARD_W = 160, GAP = 4;
-const ACT_H = 40, TASK_H = 36, STORY_H = 52, RELEASE_H = 28, TITLE_H = 44;
+const PAD = 24, CARD_W = 190, GAP = 4;
+const ACT_H = 44, TASK_H = 40, STORY_H = 72, RELEASE_H = 28, TITLE_H = 44;
+const HAND_FONT = `'Kalam', cursive`;
 
-function wrapText(str: string, maxLen = 22): string[] {
+function wrapText(str: string, maxLen = 26): string[] {
   const words = str.split(' ');
   const lines: string[] = [];
   let cur = '';
@@ -41,11 +42,11 @@ export function exportSvg(model: StoryMap): void {
 
   const parts: string[] = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}">`);
-  parts.push(`<rect width="${totalW}" height="${totalH}" fill="#f7f7f5"/>`);
+  parts.push(`<rect width="${totalW}" height="${totalH}" fill="#eceef0"/>`);
 
   let y = PAD;
   if (model.title) {
-    parts.push(svgText(PAD, y + 28, model.title, `font-size="20" font-weight="700" fill="#1a1a18" font-family="sans-serif"`));
+    parts.push(svgText(PAD, y + 28, model.title, `font-size="22" font-weight="700" fill="#1a1a18" font-family="${HAND_FONT}"`));
     y += TITLE_H;
   }
 
@@ -55,7 +56,7 @@ export function exportSvg(model: StoryMap): void {
     const actW = tc * CARD_W + (tc - 1) * GAP;
     const x = PAD + colOffset;
     parts.push(`<rect x="${x}" y="${y}" width="${actW}" height="${ACT_H}" rx="8" fill="#1a1a18"/>`);
-    parts.push(svgText(x + actW / 2, y + 25, act.name, `font-size="13" font-weight="600" fill="#fff" font-family="sans-serif" text-anchor="middle"`));
+    parts.push(svgText(x + actW / 2, y + 27, act.name, `font-size="15" font-weight="700" fill="#fff" font-family="${HAND_FONT}" text-anchor="middle"`));
     colOffset += actW + GAP;
   });
   y += ACT_H + GAP;
@@ -63,7 +64,7 @@ export function exportSvg(model: StoryMap): void {
   flatTasks.forEach(({ task }, ci) => {
     const x = PAD + ci * (CARD_W + GAP);
     parts.push(`<rect x="${x}" y="${y}" width="${CARD_W}" height="${TASK_H}" rx="6" fill="#e8e4de"/>`);
-    parts.push(svgText(x + CARD_W / 2, y + 22, task.name, `font-size="12" font-weight="500" fill="#1a1a18" font-family="sans-serif" text-anchor="middle"`));
+    parts.push(svgText(x + CARD_W / 2, y + 25, task.name, `font-size="14" font-weight="700" fill="#1a1a18" font-family="${HAND_FONT}" text-anchor="middle"`));
   });
   y += TASK_H + GAP;
 
@@ -74,11 +75,11 @@ export function exportSvg(model: StoryMap): void {
         const story = getStoriesForTier(task, tier)[slot];
         const x = PAD + ci * (CARD_W + GAP);
         const sy = y + slot * (STORY_H + GAP);
-        parts.push(`<rect x="${x}" y="${sy}" width="${CARD_W}" height="${STORY_H}" rx="6" fill="#fff" stroke="#d0ccc6" stroke-width="1"/>`);
+        parts.push(`<rect x="${x}" y="${sy}" width="${CARD_W}" height="${STORY_H}" rx="4" fill="#fffdf6" stroke="#e6dfc9" stroke-width="1"/>`);
         if (story) {
           const { display } = parseStoryText(storyDisplayText(story.text));
           wrapText(display).forEach((line, li) => {
-            parts.push(svgText(x + 8, sy + 18 + li * 16, line, `font-size="11" fill="#1a1a18" font-family="sans-serif"`));
+            parts.push(svgText(x + 10, sy + 22 + li * 20, line, `font-size="14" font-weight="700" fill="#1a1a18" font-family="${HAND_FONT}"`));
           });
         }
       });

@@ -34,5 +34,8 @@
 .canvasPane {
   flex: 1;
   overflow: auto;
-  background: #f7f7f5;
+  background-color: #eceef0;
+  background-image:
+    radial-gradient(rgba(20, 24, 28, 0.035) 1px, transparent 1px);
+  background-size: 3px 3px;
 }

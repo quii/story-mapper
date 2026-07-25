@@ -10,6 +10,7 @@ import {
   renameActivity, renameRelease, renameStory, renameTask, renameTitle,
 } from '../../core/model';
 import { releaseColor } from '../../core/palette';
+import { cardTilt } from '../../core/cardTilt';
 import { EmptyState } from './EmptyState';
 import styles from './Canvas.module.css';
 
@@ -25,7 +26,7 @@ type DragState =
   | { type: 'story'; actIdx: number; taskIdx: number; tier: number; slot: number }
   | null;
 
-const COL_W = 160;
+const COL_W = 190;
 const BTN_W = 32;
 
 export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: Props) {
@@ -253,6 +254,7 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
                           };
                           return (
                             <div className={`${styles.storyCard} ${done ? styles.storyCardDone : ''}`}
+                              style={{ '--tilt': `${cardTilt(story.id)}deg` } as React.CSSProperties}
                               draggable
                               onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, tier, slot)}
                               onDragEnd={() => { dragRef.current = null; setDragOver(null); }}

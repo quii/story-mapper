@@ -1,3 +1,15 @@
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/Kalam-Bold.woff2') format('woff2');
+}
+
+:root {
+  --font-hand: 'Kalam', cursive;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
