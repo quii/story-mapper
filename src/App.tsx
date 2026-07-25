@@ -4,6 +4,7 @@ import { useResize } from './hooks/useResize';
 import { Editor } from './components/editor/Editor';
 import { Canvas } from './components/canvas/Canvas';
 import { Toolbar } from './components/toolbar/Toolbar';
+import { Footer } from './components/toolbar/Footer';
 import { AiModal } from './components/ai/AiModal';
 import { EXAMPLE_TEXT, STARTER_TEXT } from './core/examples';
 import styles from './App.module.css';
@@ -44,6 +45,7 @@ export function App() {
           />
         </div>
       </div>
+      <Footer />
       {aiOpen && <AiModal onClose={() => setAiOpen(false)} />}
     </div>
   );
