@@ -23,6 +23,7 @@ export function App() {
         text={text}
         model={model}
         onLoadExample={handleLoadExample}
+        onReset={handleStartFromScratch}
         onOpenAi={() => setAiOpen(true)}
       />
       <div className={styles.body}>

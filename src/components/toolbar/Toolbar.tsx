@@ -9,10 +9,11 @@ interface Props {
   text: string;
   model: StoryMap;
   onLoadExample: () => void;
+  onReset: () => void;
   onOpenAi: () => void;
 }
 
-export function Toolbar({ text, model, onLoadExample, onOpenAi }: Props) {
+export function Toolbar({ text, model, onLoadExample, onReset, onOpenAi }: Props) {
   const [toast, setToast] = useState('');
 
   const showToast = (msg: string) => {
@@ -30,6 +31,12 @@ export function Toolbar({ text, model, onLoadExample, onOpenAi }: Props) {
     }
   };
 
+  const onResetClick = () => {
+    if (window.confirm('Reset the map? This clears everything you have and cannot be undone.')) {
+      onReset();
+    }
+  };
+
   return (
     <header className={styles.toolbar}>
       <span className={styles.brand}>Story Map</span>
@@ -39,6 +46,7 @@ export function Toolbar({ text, model, onLoadExample, onOpenAi }: Props) {
         <button className={styles.btn} onClick={onLoadExample}>Example</button>
         <button className={styles.btn} onClick={() => exportSvg(model)}>Export SVG</button>
         <button className={styles.btn} onClick={() => exportHtml(model)}>Export HTML</button>
+        <button className={styles.btn} onClick={onResetClick}>Reset</button>
       </div>
       {toast && <div className={styles.toast}>{toast}</div>}
     </header>
