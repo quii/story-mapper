@@ -29,6 +29,7 @@
   line-height: 1.6;
   padding-right: 6px;
   color: #bbb;
+  /* Default before the real (possibly wrapped) height is measured; overridden inline per line. */
   height: calc(13px * 1.6);
 }
 
@@ -60,7 +61,18 @@
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 13px;
   line-height: 1.6;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow: auto;
   tab-size: 2;
+  /* A visible native scrollbar here would narrow the textarea's content box relative
+     to the highlight layer's (which never shows one), so the two would wrap text at
+     different widths and disagree about where each line breaks. The gutter already
+     shows scroll position, so the textarea's own scrollbar is redundant — hide it,
+     not just visually but so it stops reserving layout width. */
+  scrollbar-width: none;
+}
+
+.textarea::-webkit-scrollbar {
+  display: none;
 }

@@ -17,7 +17,7 @@ export function SyntaxHighlight({ text, layerRef }: Props) {
           <div key={i} className={styles.line}>
             {tokens.map((tok, j) => (
               <span key={j} className={tok.type !== 'plain' ? styles[tok.type] : undefined}>
-                {tok.text || '\u200b'}
+                {tok.text}
               </span>
             ))}
           </div>
