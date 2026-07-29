@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { StoryMap } from '../../core/types';
-import { allTasks, tierCount, tierMaxRows, getStoriesForTier, releaseForTier } from '../../core/layout';
+import { allTasks, tierCount, tierMaxRows, tierRawIndices, getStoriesForTier, releaseForTier } from '../../core/layout';
 import { parseStoryText } from '../../core/storyLink';
 import { isStoryDone, toggleStoryDone, storyDisplayText } from '../../core/storyDone';
 import {
@@ -23,7 +23,7 @@ interface Props {
 
 type DragState =
   | { type: 'task'; actIdx: number; taskIdx: number }
-  | { type: 'story'; actIdx: number; taskIdx: number; tier: number; slot: number }
+  | { type: 'story'; actIdx: number; taskIdx: number; rawIndex: number; slot: number }
   | null;
 
 const COL_W = 190;
@@ -43,6 +43,8 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
   const flatTasks = allTasks(activities);
   const numTiers = tierCount(activities, releases);
   const maxRows = tierMaxRows(activities, releases);
+  // Visible (compact) tier index -> raw items-array index shared by every task.
+  const rawIndices = tierRawIndices(activities, releases);
 
   // ── Task drag ──────────────────────────────────────────────────────────────
   const onTaskDragStart = (e: React.DragEvent, actIdx: number, taskIdx: number) => {
@@ -65,8 +67,8 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
   };
 
   // ── Story drag ─────────────────────────────────────────────────────────────
-  const onStoryDragStart = (e: React.DragEvent, actIdx: number, taskIdx: number, tier: number, slot: number) => {
-    dragRef.current = { type: 'story', actIdx, taskIdx, tier, slot };
+  const onStoryDragStart = (e: React.DragEvent, actIdx: number, taskIdx: number, rawIndex: number, slot: number) => {
+    dragRef.current = { type: 'story', actIdx, taskIdx, rawIndex, slot };
     e.dataTransfer.effectAllowed = 'move';
     e.stopPropagation();
   };
@@ -75,13 +77,13 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
     e.preventDefault();
     setDragOver(key);
   };
-  const onCellDrop = (e: React.DragEvent, toActIdx: number, toTaskIdx: number, toTier: number, toSlot: number | null, hasStory: boolean) => {
+  const onCellDrop = (e: React.DragEvent, toActIdx: number, toTaskIdx: number, toRawIndex: number, toSlot: number | null, hasStory: boolean) => {
     e.preventDefault();
     setDragOver(null);
     if (dragRef.current?.type !== 'story') return;
-    const { actIdx: fAi, taskIdx: fTi, tier: fTier, slot: fSlot } = dragRef.current;
+    const { actIdx: fAi, taskIdx: fTi, rawIndex: fRawIndex, slot: fSlot } = dragRef.current;
     dragRef.current = null;
-    onChange(moveStory(model, fAi, fTi, fTier, fSlot, toActIdx, toTaskIdx, toTier, hasStory ? toSlot : null));
+    onChange(moveStory(model, fAi, fTi, fRawIndex, fSlot, toActIdx, toTaskIdx, toRawIndex, hasStory ? toSlot : null));
   };
 
   // ── Release drag ───────────────────────────────────────────────────────────
@@ -223,7 +225,7 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
 
         {/* Story tiers */}
         {Array.from({ length: numTiers }, (_, tier) => {
-          const rows = Math.max(maxRows[tier] ?? 0, 1);
+          const rows = maxRows[tier] ?? 0;
           const release = releaseForTier(releases, tier);
 
           return (
@@ -231,7 +233,8 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
               {Array.from({ length: rows }, (_, slot) => (
                 <div key={`slot-${slot}`} style={{ display: 'contents' }}>
                   {flatTasks.map(({ task, actIdx, taskIdx }, colIdx) => {
-                    const tierStories = getStoriesForTier(task, tier);
+                    const rawIndex = rawIndices[tier];
+                    const tierStories = getStoriesForTier(task, rawIndex);
                     const story = tierStories[slot];
                     const cellKey = `cell-${colIdx}-${tier}-${slot}`;
                     return (
@@ -240,7 +243,7 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
                         style={{ gridColumn: taskGridCols[colIdx] }}
                         onDragOver={(e) => onCellDragOver(e, cellKey)}
                         onDragLeave={() => setDragOver(null)}
-                        onDrop={(e) => onCellDrop(e, actIdx, taskIdx, tier, slot, !!story)}
+                        onDrop={(e) => onCellDrop(e, actIdx, taskIdx, rawIndex, slot, !!story)}
                       >
                         {story && (() => {
                           const done = isStoryDone(story.text);
@@ -250,18 +253,18 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
                           const donePrefix = done ? '~' : '';
                           const onStoryBlur = (e: React.FocusEvent<HTMLDivElement>) => {
                             const newDisplay = e.currentTarget.textContent?.trim() ?? display;
-                            onChange(renameStory(model, actIdx, taskIdx, tier, slot, donePrefix + newDisplay + linkSuffix));
+                            onChange(renameStory(model, actIdx, taskIdx, rawIndex, slot, donePrefix + newDisplay + linkSuffix));
                           };
                           return (
                             <div className={`${styles.storyCard} ${done ? styles.storyCardDone : ''}`}
                               style={{ '--tilt': `${cardTilt(story.id)}deg` } as React.CSSProperties}
                               draggable
-                              onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, tier, slot)}
+                              onDragStart={(e) => onStoryDragStart(e, actIdx, taskIdx, rawIndex, slot)}
                               onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
                             >
                               <button
                                 className={`${styles.storyDoneBtn} ${done ? styles.storyDoneBtnDone : ''}`}
-                                onClick={(e) => { e.stopPropagation(); onChange(renameStory(model, actIdx, taskIdx, tier, slot, toggleStoryDone(story.text))); }}
+                                onClick={(e) => { e.stopPropagation(); onChange(renameStory(model, actIdx, taskIdx, rawIndex, slot, toggleStoryDone(story.text))); }}
                                 aria-label={done ? 'Mark incomplete' : 'Mark done'}
                               >
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -283,7 +286,7 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
                                 )}
                               </div>
                               <button className={styles.removeStoryBtn} aria-label={`Remove story: ${display}`}
-                                onClick={() => onChange(removeStory(model, actIdx, taskIdx, tier, slot))}>×</button>
+                                onClick={() => onChange(removeStory(model, actIdx, taskIdx, rawIndex, slot))}>×</button>
                             </div>
                           );
                         })()}
@@ -296,7 +299,7 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
               {/* + story row */}
               {flatTasks.map(({ actIdx, taskIdx }, colIdx) => (
                 <div key={`add-${colIdx}-${tier}`} className={styles.addStoryCell} style={{ gridColumn: taskGridCols[colIdx] }}>
-                  <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, tier))} aria-label="Add story">+</button>
+                  <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, rawIndices[tier]))} aria-label="Add story">+</button>
                 </div>
               ))}
 
@@ -340,7 +343,7 @@ export function Canvas({ model, onChange, onLoadExample, onStartFromScratch }: P
         {/* Add story + add release after last tier */}
         {flatTasks.map(({ actIdx, taskIdx }, colIdx) => (
           <div key={`add-story-last-${colIdx}`} className={styles.addStoryCell} style={{ gridColumn: taskGridCols[colIdx] }}>
-            <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, numTiers - 1))} aria-label="Add story">+</button>
+            <button className={styles.addStoryBtn} onClick={() => onChange(addStory(model, actIdx, taskIdx, rawIndices[numTiers - 1]))} aria-label="Add story">+</button>
           </div>
         ))}
 

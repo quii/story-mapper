@@ -50,19 +50,31 @@ describe('model mutations', () => {
     expect(m.activities[1].tasks).toHaveLength(2);
   });
 
-  it('addStory appends at end of tier 0', () => {
+  it('addStory inserts at the given row, pushing existing rows down', () => {
     const m = addStory(makeModel(SIMPLE), 0, 0, 0);
-    const stories = m.activities[0].tasks[0].items.filter(i => i.type === 'story');
-    expect(stories).toHaveLength(3);
-    expect((stories[2] as any).text).toBe('New story');
+    const items = m.activities[0].tasks[0].items;
+    expect(items).toHaveLength(3);
+    expect((items[0] as any).text).toBe('New story');
+    expect((items[1] as any).text).toBe('S1');
+    expect((items[2] as any).text).toBe('S2');
   });
 
-  it('addStory appends to tier 1 when separator exists', () => {
+  it('addStory pads with separators when the row is past the end', () => {
+    const m = addStory(makeModel(SIMPLE), 0, 0, 4);
+    const items = m.activities[0].tasks[0].items;
+    expect(items).toHaveLength(5);
+    expect(items[2].type).toBe('separator');
+    expect(items[3].type).toBe('separator');
+    expect((items[4] as any).text).toBe('New story');
+  });
+
+  it('addStory can insert before an existing separator row', () => {
     const m = addStory(makeModel(WITH_SEP), 0, 0, 1);
     const items = m.activities[0].tasks[0].items;
-    const stories = items.filter(i => i.type === 'story');
-    expect(stories).toHaveLength(3);
-    expect((stories[2] as any).text).toBe('New story');
+    expect((items[0] as any).text).toBe('S1');
+    expect((items[1] as any).text).toBe('New story');
+    expect(items[2].type).toBe('separator');
+    expect((items[3] as any).text).toBe('S2');
   });
 
   it('removeStory removes the correct story', () => {
@@ -77,31 +89,38 @@ describe('model mutations', () => {
     expect((m.activities[0].tasks[0].items[0] as any).text).toBe('New text');
   });
 
-  it('moveStory moves between tiers', () => {
-    // Move S1 from tier 0 to tier 1
+  it('moveStory moves a story onto an empty row, filling a separator gap', () => {
+    // WITH_SEP items: [S1, ---, S2]. Move S1 (row 0) onto row 1 (the separator).
     const m = moveStory(makeModel(WITH_SEP), 0, 0, 0, 0, 0, 0, 1, null);
     const items = m.activities[0].tasks[0].items;
-    // tier 0 should now have only S2, tier 1 should have S2 then S1
-    const t0 = items.filter((item, i) => {
-      let tier = 0;
-      for (let j = 0; j < i; j++) if (items[j].type === 'separator') tier++;
-      return item.type === 'story' && tier === 0;
-    });
-    expect(t0).toHaveLength(0); // S1 moved out of tier 0
+    expect(items).toHaveLength(2);
+    expect(items.every(i => i.type === 'story')).toBe(true);
+    expect((items[0] as any).text).toBe('S1');
+    expect((items[1] as any).text).toBe('S2');
   });
 
-  it('addReleaseLine inserts separator in all tasks and adds release', () => {
-    const m = addReleaseLine(makeModel(SIMPLE), 0);
+  it('moveStory inserts before an already-occupied row, pushing it down', () => {
+    // SIMPLE items: [S1, S2]. Move S2 (row 1) onto row 0, which already holds S1.
+    const m = moveStory(makeModel(SIMPLE), 0, 0, 1, 0, 0, 0, 0, 0);
+    const items = m.activities[0].tasks[0].items;
+    expect(items).toHaveLength(2);
+    expect((items[0] as any).text).toBe('S2');
+    expect((items[1] as any).text).toBe('S1');
+  });
+
+  it('addReleaseLine adds a release without touching any task items', () => {
+    const before = makeModel(SIMPLE);
+    const m = addReleaseLine(before, 0);
     expect(m.releases).toHaveLength(1);
     expect(m.releases[0].tier).toBe(1);
-    expect(m.activities[0].tasks[0].items.some(i => i.type === 'separator')).toBe(true);
+    expect(m.activities[0].tasks[0].items).toEqual(before.activities[0].tasks[0].items);
   });
 
-  it('removeReleaseLine removes release and separator', () => {
+  it('removeReleaseLine removes the release without touching any task items', () => {
     const base = makeModel('release: MVP @ 1\nactivity: A\n  task: T\n    story: S1\n    ---\n    story: S2\n');
     const m = removeReleaseLine(base, 1);
     expect(m.releases).toHaveLength(0);
-    expect(m.activities[0].tasks[0].items.every(i => i.type !== 'separator')).toBe(true);
+    expect(m.activities[0].tasks[0].items).toEqual(base.activities[0].tasks[0].items);
   });
 
   it('renameRelease renames correctly', () => {

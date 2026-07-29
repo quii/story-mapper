@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Activity, StoryMap, Task, TierSeparator } from './types';
-import { storyFlatIndex, tierInsertIndex, separatorIndex } from './layout';
+import type { Activity, Item, StoryMap, Task } from './types';
+import { storyFlatIndex } from './layout';
 
 // ── Activities ────────────────────────────────────────────────────────────────
 
@@ -45,7 +45,8 @@ export function moveTask(model: StoryMap, fromActIdx: number, fromTaskIdx: numbe
 export function addStory(model: StoryMap, actIdx: number, taskIdx: number, tier: number): StoryMap {
   return updateTask(model, actIdx, taskIdx, t => {
     const items = [...t.items];
-    items.splice(tierInsertIndex(t, tier), 0, { id: uuidv4(), type: 'story', text: 'New story' });
+    padToRow(items, tier);
+    items.splice(tier, 0, { id: uuidv4(), type: 'story', text: 'New story' });
     return { ...t, items };
   });
 }
@@ -84,14 +85,18 @@ export function moveStory(
   activities[fromActIdx].tasks[fromTaskIdx].items.splice(fromIdx, 1);
 
   const toTask = activities[toActIdx].tasks[toTaskIdx];
-  // Ensure target task has enough separators to reach toTier
-  ensureSeparators(toTask, toTier);
+  const sameTask = fromActIdx === toActIdx && fromTaskIdx === toTaskIdx;
+  const target = sameTask && fromIdx < toTier ? toTier - 1 : toTier;
 
   if (toSlot !== null) {
-    const toIdx = storyFlatIndex(toTask, toTier, toSlot);
-    toTask.items.splice(toIdx >= 0 ? toIdx : tierInsertIndex(toTask, toTier), 0, movedItem);
+    // Dropping onto a row that already holds a story: insert before it, pushing it (and everything after) down a row.
+    padToRow(toTask.items, target);
+    toTask.items.splice(target, 0, movedItem);
   } else {
-    toTask.items.splice(tierInsertIndex(toTask, toTier), 0, movedItem);
+    // Dropping onto an empty row: occupy it directly, replacing any separator padding already there.
+    padToRow(toTask.items, target);
+    if (toTask.items.length === target) toTask.items.push(movedItem);
+    else toTask.items[target] = movedItem;
   }
   return { ...model, activities };
 }
@@ -99,44 +104,15 @@ export function moveStory(
 // ── Releases ──────────────────────────────────────────────────────────────────
 
 export function addReleaseLine(model: StoryMap, afterTier: number): StoryMap {
-  // Insert a separator at position afterTier in every task that doesn't already have one there
+  // A release line is just a label on a physical row — it doesn't touch any task's items.
   const newTier = afterTier + 1;
-  const releases = model.releases
-    .map(r => r.tier >= newTier ? { ...r, tier: r.tier + 1 } : r)
-    .concat({ id: uuidv4(), name: null, tier: newTier });
+  const releases = [...model.releases, { id: uuidv4(), name: null, tier: newTier }];
   releases.sort((a, b) => a.tier - b.tier);
-
-  const activities = model.activities.map(act => ({
-    ...act,
-    tasks: act.tasks.map(task => {
-      const items = [...task.items];
-      const sepIdx = separatorIndex(task, afterTier);
-      const insertAt = sepIdx >= 0 ? sepIdx : tierInsertIndex(task, afterTier);
-      items.splice(insertAt, 0, { id: uuidv4(), type: 'separator' } as TierSeparator);
-      return { ...task, items };
-    }),
-  }));
-  return { ...model, releases, activities };
+  return { ...model, releases };
 }
 
 export function removeReleaseLine(model: StoryMap, tier: number): StoryMap {
-  const releases = model.releases
-    .filter(r => r.tier !== tier)
-    .map(r => r.tier > tier ? { ...r, tier: r.tier - 1 } : r);
-
-  // Remove the (tier-1)th separator from every task (0-based: tier 1 = separator 0)
-  const sepIndex = tier - 1;
-  const activities = model.activities.map(act => ({
-    ...act,
-    tasks: act.tasks.map(task => {
-      const idx = separatorIndex(task, sepIndex);
-      if (idx < 0) return task;
-      const items = [...task.items];
-      items.splice(idx, 1);
-      return { ...task, items };
-    }),
-  }));
-  return { ...model, releases, activities };
+  return { ...model, releases: model.releases.filter(r => r.tier !== tier) };
 }
 
 export function renameRelease(model: StoryMap, tier: number, name: string | null): StoryMap {
@@ -169,10 +145,7 @@ function updateTask(model: StoryMap, actIdx: number, taskIdx: number, fn: (t: Ta
   return updateActivity(model, actIdx, a => ({ ...a, tasks: a.tasks.map((t, i) => i === taskIdx ? fn(t) : t) }));
 }
 
-/** Ensure a task has at least `tier` separators, inserting them at the end if needed. */
-function ensureSeparators(task: Task, tier: number): void {
-  const existing = task.items.filter(i => i.type === 'separator').length;
-  for (let i = existing; i < tier; i++) {
-    task.items.push({ id: uuidv4(), type: 'separator' });
-  }
+/** Pad an items array with blank separator rows until it has exactly `row` items. */
+function padToRow(items: Item[], row: number): void {
+  while (items.length < row) items.push({ id: uuidv4(), type: 'separator' });
 }

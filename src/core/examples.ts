@@ -1,7 +1,7 @@
 export const EXAMPLE_TEXT = `title: E-Commerce Platform
 
-release: MVP @ 1
-release: Beta @ 2
+release: MVP @ 2
+release: Beta @ 4
 
 activity: Discovery
   task: Search

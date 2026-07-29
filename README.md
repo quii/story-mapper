@@ -67,7 +67,7 @@ line. Keywords are case-insensitive, and blank lines or lines starting with
 title: E-Commerce Platform
 
 release: MVP @ 1
-release: Beta @ 2
+release: Beta @ 3
 
 activity: Discovery
   task: Search
@@ -93,8 +93,14 @@ activity: Purchase
 | `activity: <text>` | Starts a new activity (a backbone column group). |
 | `task: <text>` | Starts a new task under the current activity. |
 | `story: <text>` | Adds a story to the current task. |
-| `---` | Marks a tier break within the current task — everything above is tier 1, everything after the first `---` is tier 2, and so on. |
-| `release: <name> @ <tier>` | Names a tier (e.g. `release: MVP @ 1`) so it gets a coloured band across the whole board. |
+| `---` | Skips this task down to the next row. It doesn't hold a story itself — it just pushes everything below it, in *this task only*, one row later, so a shorter task's later stories can still land in a later release. |
+| `release: <name> @ <row>` | Draws a named line directly below physical row `<row>`, the same row for every task on the board. Stories above the line (or above no line yet) belong to that release or an earlier one. |
+
+Rows are literal and counted straight down each task's own list of stories —
+`release: MVP @ 1` always sits right below the first row, full stop. Whether a
+story lands above or below a release line is purely a function of which row
+it's on; `---` is the only way to nudge a task's later stories down past a
+release they'd otherwise fall inside.
 
 A couple of extras that live in the story text itself, rather than as
 keywords:

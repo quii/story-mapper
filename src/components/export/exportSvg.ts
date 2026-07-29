@@ -1,5 +1,5 @@
 import type { StoryMap } from '../../core/types';
-import { allTasks, tierCount, tierMaxRows, getStoriesForTier, releaseForTier } from '../../core/layout';
+import { allTasks, tierCount, tierMaxRows, tierRawIndices, getStoriesForTier, releaseForTier } from '../../core/layout';
 import { releaseColor } from '../../core/palette';
 import { storyDisplayText } from '../../core/storyDone';
 import { parseStoryText } from '../../core/storyLink';
@@ -31,12 +31,13 @@ export function exportSvg(model: StoryMap): void {
   const numCols = flatTasks.length;
   const numTiers = tierCount(activities, releases);
   const maxRows = tierMaxRows(activities, releases);
+  const rawIndices = tierRawIndices(activities, releases);
 
   const titleH = model.title ? TITLE_H : 0;
   const totalW = PAD * 2 + numCols * CARD_W + (numCols - 1) * GAP;
   let totalH = PAD * 2 + titleH + ACT_H + GAP + TASK_H + GAP;
   for (let t = 0; t < numTiers; t++) {
-    totalH += Math.max(maxRows[t] ?? 0, 1) * (STORY_H + GAP);
+    totalH += (maxRows[t] ?? 0) * (STORY_H + GAP);
     if (releaseForTier(releases, t)) totalH += RELEASE_H + GAP;
   }
 
@@ -69,10 +70,10 @@ export function exportSvg(model: StoryMap): void {
   y += TASK_H + GAP;
 
   for (let tier = 0; tier < numTiers; tier++) {
-    const rows = Math.max(maxRows[tier] ?? 0, 1);
+    const rows = maxRows[tier] ?? 0;
     for (let slot = 0; slot < rows; slot++) {
       flatTasks.forEach(({ task }, ci) => {
-        const story = getStoriesForTier(task, tier)[slot];
+        const story = getStoriesForTier(task, rawIndices[tier])[slot];
         const x = PAD + ci * (CARD_W + GAP);
         const sy = y + slot * (STORY_H + GAP);
         parts.push(`<rect x="${x}" y="${sy}" width="${CARD_W}" height="${STORY_H}" rx="4" fill="#fffdf6" stroke="#e6dfc9" stroke-width="1"/>`);

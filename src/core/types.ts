@@ -4,7 +4,7 @@ export interface StoryMap {
   activities: Activity[];
 }
 
-/** A named release line. tier = 1-based separator index (1st --- in each task = tier 1). */
+/** A named release line. tier = 1-based physical row index; the line renders directly below that row, across the whole map. */
 export interface Release {
   id: string;
   name: string | null;
@@ -31,7 +31,9 @@ export interface StoryItem {
   text: string;
 }
 
-/** A tier boundary within a task — written as `---` in the text format. */
+/** A manual row skip within a task — written as `---`. Occupies one blank row itself,
+ * pushing every later item in this task down to the next row (and potentially into
+ * a later release). */
 export interface TierSeparator {
   id: string;
   type: 'separator';
