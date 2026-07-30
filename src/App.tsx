@@ -10,7 +10,8 @@ import { EXAMPLE_TEXT, STARTER_TEXT } from './core/examples';
 import styles from './App.module.css';
 
 export function App() {
-  const { text, model, diagnostics, setText, updateModel } = useStoryMap();
+  const { text, model, diagnostics, setText, updateModel, sourceUrl, sourceStatus, sourceError, syncFromSource } =
+    useStoryMap();
   const { width, onMouseDown } = useResize(340);
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -25,6 +26,10 @@ export function App() {
         onLoadExample={handleLoadExample}
         onReset={handleStartFromScratch}
         onOpenAi={() => setAiOpen(true)}
+        sourceUrl={sourceUrl}
+        sourceStatus={sourceStatus}
+        sourceError={sourceError}
+        onSyncFromSource={syncFromSource}
       />
       <div className={styles.body}>
         <div className={styles.editorPane} style={{ width }}>

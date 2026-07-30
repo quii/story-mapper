@@ -56,6 +56,53 @@ The tradeoff is that there's currently no single permanent URL for a map that
 a team keeps coming back to and editing over time (see the "back pocket" idea
 of an opt-in short-link service, not yet built).
 
+### Loading from a source URL
+
+For a team that keeps the map text under source control — say, a `.txt` file
+in a GitHub repo — add `?src=<url>` to point the app at it instead of
+encoding content in the hash:
+
+```
+https://your-story-mapper/?src=https://raw.githubusercontent.com/your-org/your-repo/main/storymap.txt
+```
+
+On first load the app fetches that URL and shows the result. From then on,
+the URL hash is left alone (so the `?src=` link stays a clean, stable
+pointer) and edits are kept in `localStorage` instead, so a stray refresh
+never loses work. Hit **Sync from source** in the toolbar to discard local
+edits and pull the latest version — useful after someone else has updated
+the file upstream.
+
+There's no write-back: this app has no backend and can't push commits, so
+syncing changes into the repo is still a manual step (copy the text out of
+the editor and commit it yourself). The `src` URL must be reachable and
+CORS-enabled from wherever the app is hosted — `raw.githubusercontent.com`
+sends permissive CORS headers, so it works out of the box for a **public**
+repo. A private repo's raw URL requires an `Authorization` header that
+plain `fetch()` can't attach without exposing a token in the page, so don't
+put a GitHub token in the `src` URL. For a private repo, either mirror the
+file to somewhere that doesn't need auth (an internal webserver, a private
+S3/GCS bucket with signed access, etc.) or keep this as a future extension
+point for a small proxy/token-exchange endpoint.
+
+This composes with self-hosting: the app is a static build (see
+[Deployment](#deployment)) with no server-side dependency on where the
+source file lives, so a team can run it privately on their own webserver
+(keeping the *app* private) while `?src=` points at wherever the *map
+file* actually lives.
+
+The neatest version of this sidesteps CORS entirely: if a team already has a
+webapp with its own static-assets folder under source control, they can
+build story-mapper's `dist/` into that same folder (as a sibling path, e.g.
+`/tools/storymap/`, not the root, or it'll collide with their own
+`index.html`) and check the map's `.txt` file into that same folder. Both
+are then served from the same origin as the rest of their site, so `?src=`
+can be a plain relative path (`?src=/storymap.txt`) — no CORS headers, no
+GitHub auth, and whatever access control already guards the static folder
+covers the map too. Deploying story-mapper under a subpath like that needs
+Vite's [`base`](https://vite.dev/config/shared-options.html#base) config
+option set to that subpath so its built asset URLs resolve correctly.
+
 ## The grammar
 
 The text format is line-based; indentation is cosmetic (purely for your own

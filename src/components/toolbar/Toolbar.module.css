@@ -52,6 +52,15 @@
   border-color: #999;
 }
 
+.sourceStatus {
+  font-size: 12px;
+  color: #7a756c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
 .toast {
   position: absolute;
   right: 16px;
